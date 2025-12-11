@@ -1,0 +1,8 @@
+.gradle
+.idea
+.kotlin
+bruno
+build
+buildSrc
+gradle
+logs
