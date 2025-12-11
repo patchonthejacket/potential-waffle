@@ -1,8 +1,0 @@
-Id,Equipment,Category,GuaranteeDate,IsUsed,Price,Location,ResponsiblePerson,User
-1d0f861e-9d0c-4340-acad-69ade7b83085,"Монитор 19.5"" LG 20M47D",Монитор,2028-01-01,false,2800,склад,de42a00f-7f43-4d10-808d-bee47fdeef49,
-4cc3098f-fa98-4312-b351-fce99fde825f,"Монитор 19.5"" Acer K202HQL",Монитор,2028-01-01,false,5700,склад,de42a00f-7f43-4d10-808d-bee47fdeef49,
-bf7c82ce-334a-470b-89be-f7ae283ce564,"Системный блок Acer Intel Core i5-6500, RAM 16 ГБ, SSD 480 ГБ, Intel HD Graphics 530",ПК,2028-01-01,false,15300,склад,de42a00f-7f43-4d10-808d-bee47fdeef49,
-f463afc0-3088-4ba4-92ae-5859faedc585,"Принтер Canon PIXMA G540 ",Принтер,2030-01-01,true,21550,"офис, кабинет № 26",de42a00f-7f43-4d10-808d-bee47fdeef49,de42a00f-7f43-4d10-808d-bee47fdeef49
-d7494a0f-6929-4d71-9bbc-fb067356bfeb,IP-телефон Cisco CP-7940G,Телефон,2030-01-01,true,6100,"офис, кабинет № 26",de42a00f-7f43-4d10-808d-bee47fdeef49,de42a00f-7f43-4d10-808d-bee47fdeef49
-fe385d95-f916-47c0-b042-557435b2e160,Проектор Epson EB-E20,Другое,2030-01-01,true,60600,"офис, кабинет № 15",de42a00f-7f43-4d10-808d-bee47fdeef49,de42a00f-7f43-4d10-808d-bee47fdeef49
-f920444e-3741-497c-a6b2-b9fa1bc5b741,"Принтер Canon PIXMA G540 ",Принтер,2030-01-01,true,21550,"офис, кабинет № 15",de42a00f-7f43-4d10-808d-bee47fdeef49,de42a00f-7f43-4d10-808d-bee47fdeef49
