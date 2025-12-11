@@ -1,0 +1,32 @@
+meta {
+  name: Редактировать без изменений
+  type: http
+  seq: 16
+}
+
+patch {
+  url: http://localhost:9000/v2/equipment/1d0f861e-9d0c-4340-acad-69ade7b83085
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "Equipment": "Монитор 19.5\" LG 20M47D",
+    "Category": "Монитор",
+    "GuaranteeDate": "2028-01-01",
+    "Price": 2800,
+    "Location": "склад",
+    "ResponsiblePerson": "de42a00f-7f43-4d10-808d-bee47fdeef49",
+    "User": null,
+    "Operation": "Проверка",
+    "Text": "Проверка без изменений"
+  }
+}
+
+tests {
+  test("Status is 204 (No Content)", function() {
+    expect(res.status).to.equal(204);
+  });
+}
+

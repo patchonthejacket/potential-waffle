@@ -1,0 +1,37 @@
+meta {
+  name: Полное обновление пользователя
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{base_url}}/v2/users/{{user_id}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "Name": "Петров Петр Петрович",
+    "Email": "PetrovPP@crafted.su",
+    "Position": "Менеджер"
+  }
+}
+
+docs {
+  # Полное обновление пользователя (PUT)
+  # 
+  # Все поля обязательны. PUT заменяет весь ресурс.
+  # В отличие от PATCH, здесь нужно передавать все поля.
+}
+
+tests {
+  test("Status is 204", function() {
+    res.status.to.equal(204);
+  });
+}
+

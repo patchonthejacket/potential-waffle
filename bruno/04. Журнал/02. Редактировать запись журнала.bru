@@ -1,0 +1,22 @@
+meta {
+  name: Редактировать запись журнала
+  type: http
+  seq: 2
+}
+
+put {
+  url: http://localhost:9000/v2/log/29478648-3524-4d60-9176-22aad1c3bb4a
+  body: form
+  auth: none
+}
+
+body:form {
+  Operation: Передача
+  Text: Передача монитора в использование
+}
+
+tests {
+  test("Status is 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}

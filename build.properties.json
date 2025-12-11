@@ -1,0 +1,14 @@
+{
+  "mainClass": "ru.yarsu.MainKt",
+  "dependencies": [
+    "com.fasterxml.jackson.module:jackson-module-kotlin:2.20.0",
+    "com.jsoizo:kotlin-csv:1.10.0",
+    "org.jcommander:jcommander:2.0",
+    "org.http4k:http4k-core:6.19.0.0",
+    "org.http4k:http4k-server-netty:6.19.0.0",
+    "org.http4k:http4k-format-jackson:6.19.0.0",
+    "ch.qos.logback:logback-classic:1.4.14",
+    "net.logstash.logback:logstash-logback-encoder:7.4"
+
+  ]
+}

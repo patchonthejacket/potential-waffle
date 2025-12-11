@@ -1,0 +1,37 @@
+meta {
+  name: Добавить проектор
+  type: http
+  seq: 13
+}
+
+post {
+  url: http://localhost:9000/v2/equipment
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "Equipment": "Проектор Epson EB-E20",
+    "Category": "Другое",
+    "GuaranteeDate": "2030-01-01",
+    "Price": 60600,
+    "Location": "офис, кабинет № 15",
+    "ResponsiblePerson": "de42a00f-7f43-4d10-808d-bee47fdeef49",
+    "User": "de42a00f-7f43-4d10-808d-bee47fdeef49",
+    "Operation": "Приобретение",
+    "Text": "Приобретение проектора для презентаций"
+  }
+}
+
+tests {
+  test("Status is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+  
+  test("Response contains EquipmentId and LogId", function() {
+    expect(res.body).to.have.property("EquipmentId");
+    expect(res.body).to.have.property("LogId");
+  });
+}
+

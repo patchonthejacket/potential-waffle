@@ -1,0 +1,36 @@
+meta {
+  name: Добавить монитор
+  type: http
+  seq: 10
+}
+
+post {
+  url: http://localhost:9000/v2/equipment
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "Equipment": "Монитор 19.5\" Acer K202HQL",
+    "Category": "Монитор",
+    "GuaranteeDate": "2028-01-01",
+    "Price": 5700,
+    "Location": "склад",
+    "ResponsiblePerson": "de42a00f-7f43-4d10-808d-bee47fdeef49",
+    "User": null,
+    "Operation": "Приобретение",
+    "Text": "Приобретение нового монитора"
+  }
+}
+
+tests {
+  test("Status is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+  
+  test("Response contains EquipmentId and LogId", function() {
+    expect(res.body).to.have.property("EquipmentId");
+    expect(res.body).to.have.property("LogId");
+  });
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Удалить оборудование
+  type: http
+  seq: 5
+}
+
+delete {
+  url: http://localhost:9000/v2/equipment/4cc3098f-fa98-4312-b351-fce99fde825f
+  body: none
+}
+
+tests {
+  test("Status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  
+  test("Response contains LogId", function() {
+    expect(res.body).to.have.property("LogId");
+  });
+  
+  test("LogId is valid UUID", function() {
+    expect(res.body.LogId).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+}

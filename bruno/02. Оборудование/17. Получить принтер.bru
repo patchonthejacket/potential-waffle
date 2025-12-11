@@ -1,0 +1,26 @@
+meta {
+  name: Получить принтер
+  type: http
+  seq: 17
+}
+
+get {
+  url: http://localhost:9000/v2/equipment/f463afc0-3088-4ba4-92ae-5859faedc585
+  body: none
+}
+
+tests {
+  test("Status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  
+  test("Equipment is printer", function() {
+    expect(res.body.Equipment).to.include("Принтер");
+    expect(res.body.Category).to.equal("Принтер");
+  });
+  
+  test("Price matches", function() {
+    expect(res.body.Price).to.equal(21550);
+  });
+}
+

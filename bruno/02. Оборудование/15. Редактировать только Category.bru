@@ -1,0 +1,29 @@
+meta {
+  name: Редактировать только Category
+  type: http
+  seq: 15
+}
+
+patch {
+  url: http://localhost:9000/v2/equipment/bf7c82ce-334a-470b-89be-f7ae283ce564
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "Equipment": "Системный блок Acer Intel Core i5-6500, RAM 16 ГБ, SSD 480 ГБ, Intel HD Graphics 530",
+    "Location": "склад",
+    "ResponsiblePerson": "de42a00f-7f43-4d10-808d-bee47fdeef49",
+    "Category": "ПК",
+    "Operation": "Обновление",
+    "Text": "Обновление категории"
+  }
+}
+
+tests {
+  test("Status is 201 or 204", function() {
+    expect([201, 204]).to.include(res.status);
+  });
+}
+
