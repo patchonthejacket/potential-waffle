@@ -9,4 +9,5 @@ data class User(
     val RegistrationDateTime: LocalDateTime,
     val Email: String,
     val Position: String,
+    val Role: String, // "User", "Admin", "Manager"
 )

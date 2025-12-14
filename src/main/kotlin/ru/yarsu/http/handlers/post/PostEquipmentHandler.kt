@@ -3,83 +3,95 @@ package ru.yarsu.http.handlers.post
 import org.http4k.core.HttpHandler
 import org.http4k.core.Method
 import org.http4k.core.Status
+import ru.yarsu.Equipment
 import ru.yarsu.EquipmentStorage
+import ru.yarsu.Log
 import ru.yarsu.http.Route
-import ru.yarsu.http.handlers.EquipmentResponse
+import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
 import java.time.LocalDateTime
 import java.util.UUID
 
-@Route(method = Method.POST, path = "/v2/equipment")
+@Route(method = Method.POST, path = "/v3/equipment")
 fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        try {
+        val data =
             validateJson {
-                val equipment = requireTextAllowEmpty("Equipment")
-                val category = requireText("Category")
-                val price = requireNumber("Price")
-                val guaranteeDate = requireDate("GuaranteeDate")
-                val location = requireTextAllowEmpty("Location")
-                val responsiblePerson = requireText("ResponsiblePerson")
-                val user = optionalText("User")
-                val operation = requireText("Operation")
-                val text = requireText("Text")
+                fun <T> requireOrThrow(
+                    value: T?,
+                    fieldName: String,
+                ): T =
+                    value ?: throw ValidationException(
+                        Status.BAD_REQUEST,
+                        mapOf(fieldName to mapOf("Error" to "Поле обязательно")),
+                    )
 
-                // Валидация
-                category?.let { validateCategory(it) }
-                price?.let { validatePrice(it) }
-                val responsiblePersonUuid = validateResponsiblePersonUuid("ResponsiblePerson", responsiblePerson)
-                val userUuid = user?.takeUnless { it.isBlank() }?.let { validateUserUuid("User", it) }
+                object {
+                    val Equipment = requireTextAllowEmpty("Equipment") ?: ""
+                    val rawCat = requireOrThrow(requireText("Category"), "Category")
+                    val Category =
+                        validateCategory(rawCat)
+                            ?: throw ValidationException(Status.BAD_REQUEST, mapOf("Category" to mapOf("Error" to "Неверная категория")))
 
-                if (hasErrors()) {
-                    return@restful json(Status.BAD_REQUEST, collectErrors())
+                    val GuaranteeDate = requireOrThrow(requireDate("GuaranteeDate"), "GuaranteeDate")
+                    val Price = requireOrThrow(requireNumber("Price"), "Price")
+                    val Location = requireTextAllowEmpty("Location") ?: ""
+
+                    // User (UUID?), если передан
+                    val userText = optionalTextAllowEmpty("User")
+                    val User =
+                        if (!userText.isNullOrBlank()) {
+                            validateUserUuid("User", userText)
+                                ?: throw ValidationException(
+                                    Status.BAD_REQUEST,
+                                    mapOf("User" to mapOf("Error" to "Пользователь не найден")),
+                                )
+                        } else {
+                            null
+                        }
+
+                    // Поля для журнала (Operation, Text) при создании
+                    val Operation = requireOrThrow(requireText("Operation"), "Operation")
+                    val Text = requireOrThrow(requireText("Text"), "Text")
                 }
-
-                // Проверяем обязательные поля
-                if (equipment == null || category == null || price == null ||
-                    guaranteeDate == null || location == null || responsiblePerson == null ||
-                    operation == null || text == null
-                ) {
-                    return@restful json(Status.BAD_REQUEST, collectErrors())
-                }
-
-                // Создаём оборудование
-                val equipmentId = UUID.randomUUID()
-                storage.addEquipment(
-                    ru.yarsu.Equipment(
-                        Id = equipmentId,
-                        Equipment = equipment,
-                        Category = category,
-                        GuaranteeDate = guaranteeDate,
-                        IsUsed = userUuid != null,
-                        Price = price,
-                        Location = location,
-                        ResponsiblePerson = responsiblePerson,
-                        User = userUuid?.toString(),
-                    ),
-                )
-
-                // Добавляем запись в журнал
-                val logId = UUID.randomUUID()
-                storage.addLog(
-                    ru.yarsu.Log(
-                        Id = logId,
-                        Equipment = equipmentId,
-                        ResponsiblePerson = responsiblePerson,
-                        Operation = operation,
-                        Text = text,
-                        LogDateTime = LocalDateTime.now(),
-                    ),
-                )
-
-                created(
-                    EquipmentResponse(
-                        EquipmentId = equipmentId.toString(),
-                        LogId = logId.toString(),
-                    ),
-                )
             }
-        } catch (e: ru.yarsu.http.handlers.ValidationException) {
-            json(e.status, e.body)
+
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
+
+        val currentUser = user ?: throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Auth required"))
+
+        val newId = UUID.randomUUID()
+        val newEquipment =
+            Equipment(
+                Id = newId,
+                Equipment = data.Equipment,
+                Category = data.Category,
+                GuaranteeDate = data.GuaranteeDate,
+                IsUsed = data.User != null,
+                Price = data.Price,
+                Location = data.Location,
+                ResponsiblePerson = currentUser.Id,
+                User = data.User,
+            )
+
+        storage.addEquipment(newEquipment)
+
+        val logId = UUID.randomUUID()
+        storage.addLog(
+            Log(
+                Id = logId,
+                Equipment = newId,
+                ResponsiblePerson = currentUser.Id.toString(),
+                Operation = data.Operation,
+                Text = data.Text,
+                LogDateTime = LocalDateTime.now(),
+            ),
+        )
+
+        created(
+            ru.yarsu.http.handlers
+                .EquipmentResponse(EquipmentId = newId.toString(), LogId = logId.toString()),
+        )
     }

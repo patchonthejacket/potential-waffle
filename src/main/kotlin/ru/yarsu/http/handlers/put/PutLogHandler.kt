@@ -6,51 +6,62 @@ import org.http4k.core.Status
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.http.Route
 import ru.yarsu.http.handlers.ApiResult
+import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.logIdPathLens
 import ru.yarsu.http.handlers.logUpdateFormLens
 import ru.yarsu.http.handlers.operationFormField
 import ru.yarsu.http.handlers.restful
 import ru.yarsu.http.handlers.textFormField
 
-@Route(method = Method.PUT, path = "/v2/log/{log-id}")
+@Route(method = Method.PUT, path = "/v3/log/{log-id}")
 fun putLogHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
         val id = logIdPathLens(req)
-        // PUT /v2/log/{log-id} принимает application/x-www-form-urlencoded
+
         val form =
             try {
                 logUpdateFormLens(req)
             } catch (e: org.http4k.lens.LensFailure) {
                 val fields = e.failures.map { it.meta.name }.toSet()
                 val errors = mutableMapOf<String, Any>()
+
                 if ("Operation" in fields) {
                     errors["Operation"] = mapOf("Value" to null, "Error" to "Отсутствует поле")
                 }
                 if ("Text" in fields) {
                     errors["Text"] = mapOf("Value" to null, "Error" to "Отсутствует поле")
                 }
+
                 if (errors.isEmpty()) {
-                    return@restful ApiResult.Custom(Status.BAD_REQUEST, mapOf("Error" to "Некорректные значения параметров формы"))
+                    // Если поля на месте, но данные кривые (редко для String)
+                    throw ValidationException(Status.BAD_REQUEST, mapOf("Error" to "Некорректные значения параметров формы"))
                 }
-                return@restful ApiResult.Custom(Status.BAD_REQUEST, errors)
+                throw ValidationException(Status.BAD_REQUEST, errors)
             }
+
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
+        val existing =
+            storage.getLog(id) ?: return@restful notFound(mapOf("Error" to "Запись в журнале не найдена", "LogId" to id.toString()))
+
+        // Проверка, что запись принадлежит текущему пользователю
+        val currentUserId = user?.Id?.toString()
+        if (existing.ResponsiblePerson != currentUserId) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
 
         val operation = operationFormField(form)
         val text = textFormField(form)
 
-        val existing = storage.getLog(id)
-        if (existing == null) {
-            notFound(mapOf("LogId" to id.toString()))
-        } else {
-            storage.updateLog(id) { log ->
-                log.copy(
-                    Operation = operation,
-                    Text = text,
-                    // При редактировании журнала время остаётся таким же, как в исходной записи
-                    LogDateTime = log.LogDateTime,
-                )
-            }
-            // успешное редактирование журнала — 204 No Content
-            ApiResult.NoContent
+        storage.updateLog(id) { log ->
+            log.copy(
+                Operation = operation,
+                Text = text,
+                LogDateTime = log.LogDateTime,
+            )
         }
+
+        ApiResult.NoContent
     }

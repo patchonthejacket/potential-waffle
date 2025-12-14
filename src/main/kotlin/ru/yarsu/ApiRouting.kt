@@ -7,6 +7,7 @@ import ru.yarsu.http.handlers.delete.deleteLogHandler
 import ru.yarsu.http.handlers.delete.deleteUserHandler
 import ru.yarsu.http.handlers.get.byTimeHandler
 import ru.yarsu.http.handlers.get.getEquipmentHandler
+import ru.yarsu.http.handlers.get.getLogByIdHandler
 import ru.yarsu.http.handlers.get.getLogHandler
 import ru.yarsu.http.handlers.get.listEquipmentHandler
 import ru.yarsu.http.handlers.get.listUsersHandler
@@ -34,6 +35,7 @@ fun createApiRoutes(storage: EquipmentStorage): RoutingHttpHandler =
         ::byTimeHandler,
         ::statisticsHandler,
         ::getLogHandler,
+        ::getLogByIdHandler,
         ::putLogHandler,
         ::patchLogHandler,
         ::postLogHandler,

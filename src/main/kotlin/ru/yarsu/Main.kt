@@ -2,113 +2,151 @@ package ru.yarsu
 
 import com.beust.jcommander.JCommander
 import com.beust.jcommander.Parameter
+import org.http4k.core.then
 import org.http4k.server.Netty
 import org.http4k.server.asServer
+import ru.yarsu.web.authFilter
 import java.io.File
 import kotlin.system.exitProcess
 
 class ServerArgs {
-    @Parameter(names = ["--equipment-file"], required = true)
+    @Parameter(names = ["--equipment-file"], description = "Path to equipment CSV file", required = true)
     var equipmentFile: String? = null
 
-    @Parameter(names = ["--log-file"], required = true)
+    @Parameter(names = ["--log-file"], description = "Path to log CSV file", required = true)
     var logFile: String? = null
 
-    @Parameter(names = ["--users-file"], required = true)
+    @Parameter(names = ["--users-file"], description = "Path to users CSV file", required = true)
     var usersFile: String? = null
 
-    // Файл с задачами для совместимости с тестирующей системой.
-    // В текущей реализации не используется, но наличие параметра
-    // позволяет JCommander корректно разобрать аргументы и запустить сервер.
-    @Parameter(names = ["--tasks-file"])
+    @Parameter(names = ["--secret"], description = "Secret key for HMAC512 signature", required = true)
+    var secret: String? = null
+
+    @Parameter(names = ["--tasks-file"], description = "Path to tasks file (optional)")
     var tasksFile: String? = null
 
-    @Parameter(names = ["--port"], required = true)
+    @Parameter(names = ["--port"], description = "Server port", required = true)
     var port: Int? = null
+
+    @Parameter(names = ["--help", "-h"], description = "Show help", help = true)
+    var help: Boolean = false
 }
 
 fun main(args: Array<String>) {
-    if (args.isEmpty()) {
-        System.err.println("Error: no arguments provided")
+    val serverArgs = ServerArgs()
+    val jc = JCommander.newBuilder().addObject(serverArgs).build()
+
+    try {
+        if (args.isEmpty()) {
+            jc.usage()
+            exitProcess(1)
+        }
+        jc.parse(*args)
+
+        if (serverArgs.help) {
+            jc.usage()
+            exitProcess(0)
+        }
+    } catch (e: Exception) {
+        System.err.println("Error parsing arguments: ${e.message}")
+        jc.usage()
         exitProcess(1)
     }
 
-    if (args[0].startsWith("--")) {
-        val serverArgs = ServerArgs()
-        val jc = JCommander.newBuilder().addObject(serverArgs).build()
-
-        try {
-            jc.parse(*args)
-        } catch (e: Exception) {
-            System.err.println("Error: ${e.message}")
+    // Безопасное извлечение аргументов (JCommander уже проверил required=true, но для компилятора Kotlin делаем smart cast или elvis)
+    val equipmentFilePath =
+        serverArgs.equipmentFile ?: run {
+            System.err.println("Error: --equipment-file is required")
+            exitProcess(1)
+        }
+    val logFilePath =
+        serverArgs.logFile ?: run {
+            System.err.println("Error: --log-file is required")
+            exitProcess(1)
+        }
+    val usersFilePath =
+        serverArgs.usersFile ?: run {
+            System.err.println("Error: --users-file is required")
+            exitProcess(1)
+        }
+    val secretKey =
+        serverArgs.secret ?: run {
+            System.err.println("Error: --secret is required")
+            exitProcess(1)
+        }
+    val serverPort =
+        serverArgs.port ?: run {
+            System.err.println("Error: --port is required")
             exitProcess(1)
         }
 
-        val equipmentFile =
-            serverArgs.equipmentFile ?: run {
-                System.err.println("Error: missing --equipment-file")
-                exitProcess(1)
-            }
-        val logFile =
-            serverArgs.logFile ?: run {
-                System.err.println("Error: missing --log-file")
-                exitProcess(1)
-            }
-        val usersFile =
-            serverArgs.usersFile ?: run {
-                System.err.println("Error: missing --users-file")
-                exitProcess(1)
-            }
-        val port =
-            serverArgs.port ?: run {
-                System.err.println("Error: missing --port")
-                exitProcess(1)
-            }
+    // Валидация файлов и порта
+    if (!File(equipmentFilePath).exists()) {
+        System.err.println("Error: Equipment file not found at «$equipmentFilePath»")
+        exitProcess(1)
+    }
+    if (!File(logFilePath).exists()) {
+        System.err.println("Error: Log file not found at «$logFilePath»")
+        exitProcess(1)
+    }
+    if (!File(usersFilePath).exists()) {
+        System.err.println("Error: Users file not found at «$usersFilePath»")
+        exitProcess(1)
+    }
+    if (serverPort !in 1024..65535) {
+        System.err.println("Error: Invalid port $serverPort. Must be between 1024 and 65535.")
+        exitProcess(1)
+    }
 
-        if (!File(equipmentFile).exists()) {
-            System.err.println("Error: file not found «$equipmentFile»")
-            exitProcess(1)
-        }
-        if (!File(logFile).exists()) {
-            System.err.println("Error: file not found «$logFile»")
-            exitProcess(1)
-        }
-        if (!File(usersFile).exists()) {
-            System.err.println("Error: file not found «$usersFile»")
-            exitProcess(1)
-        }
-        if (port !in 1024..65535) {
-            System.err.println("Error: invalid port")
-            exitProcess(1)
-        }
-
-        val storage = EquipmentStorage()
-        CsvReader.readEquipment(equipmentFile).forEach { storage.addEquipment(it) }
-        CsvReader.readLog(logFile).forEach { storage.addLog(it) }
-        CsvReader.readUsers(usersFile).forEach { storage.addUser(it) }
-
+    // Загрузка данных
+    val storage = EquipmentStorage()
+    try {
+        println("Loading data...")
+        CsvReader.readEquipment(equipmentFilePath).forEach { storage.addEquipment(it) }
+        CsvReader.readLog(logFilePath).forEach { storage.addLog(it) }
+        CsvReader.readUsers(usersFilePath).forEach { storage.addUser(it) }
         println(
-            "Loaded ${storage.getAllEquipment().size} equipment, ${storage.getAllLogs().size} logs, and ${storage.getAllUsers().size} users",
+            "Loaded ${storage.getAllEquipment().size} equipment items, ${storage.getAllLogs().size} logs, and ${storage.getAllUsers().size} users.",
         )
+    } catch (e: Exception) {
+        System.err.println("Error reading CSV files: ${e.message}")
+        exitProcess(1)
+    }
 
-        val app = createApiRoutes(storage)
-        val server = app.asServer(Netty(port))
+    // Настройка приложения
+    // 1. Создаем роуты
+    val rawApp = createApiRoutes(storage)
 
-        // Добавляем обработчик завершения для сохранения данных
-        Runtime.getRuntime().addShutdownHook(
-            Thread {
-                println("Saving data to CSV files...")
-                CsvWriter.writeEquipment(equipmentFile, storage.getAllEquipment())
-                CsvWriter.writeLog(logFile, storage.getAllLogs())
-                CsvWriter.writeUsers(usersFile, storage.getAllUsers())
-                println("Data saved successfully")
-            },
-        )
+    // 2. Подключаем фильтр аутентификации (передаем секрет для валидации токенов)
+    val app = authFilter(storage, secretKey).then(rawApp)
 
+    // Запуск сервера
+    val server = app.asServer(Netty(serverPort))
+
+    // Обработчик завершения (Graceful shutdown)
+    Runtime.getRuntime().addShutdownHook(
+        Thread {
+            println("\nStopping server...")
+            server.stop()
+            println("Saving data to CSV files...")
+            try {
+                CsvWriter.writeEquipment(equipmentFilePath, storage.getAllEquipment())
+                CsvWriter.writeLog(logFilePath, storage.getAllLogs())
+                CsvWriter.writeUsers(usersFilePath, storage.getAllUsers())
+                println("Data saved successfully.")
+            } catch (e: Exception) {
+                System.err.println("Error saving data: ${e.message}")
+            }
+        },
+    )
+
+    try {
         server.start()
-        println("Server started on http://localhost:$port")
-    } else {
-        System.err.println("CLI commands not implemented in this version")
+        println("Server started on http://localhost:$serverPort")
+        // Блокируем главный поток, чтобы программа не завершилась (Netty обычно сам держит, но это хорошая практика)
+        Thread.currentThread().join()
+    } catch (e: Exception) {
+        System.err.println("Error starting server: ${e.message}")
         exitProcess(1)
     }
 }

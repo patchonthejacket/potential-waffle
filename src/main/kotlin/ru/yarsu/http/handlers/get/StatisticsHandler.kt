@@ -7,56 +7,63 @@ import ru.yarsu.EquipmentStorage
 import ru.yarsu.http.Route
 import ru.yarsu.http.handlers.CategoryStat
 import ru.yarsu.http.handlers.PersonStat
+import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
+import java.util.UUID
 
-@Route(method = Method.GET, path = "/v2/equipment/statistics")
+@Route(method = Method.GET, path = "/v3/equipment/statistics")
 fun statisticsHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        val byType = req.query("by-type") ?: throw IllegalArgumentException("Missing required parameter: by-type")
+        val byType =
+            req.query("by-type")
+                ?: throw ValidationException(Status.BAD_REQUEST, mapOf("by-type" to mapOf("Error" to "Missing required parameter")))
+
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         when (byType) {
             "category" -> {
-                val grouped = storage.getAllEquipment().groupBy { it.Category }
+                if (!permissions.manageAllEquipment) {
+                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+                }
+
+                // Учитываем только технику под ответственностью текущего пользователя (Admin)
+                val currentUserId = user?.Id
                 val stats =
-                    grouped.entries
-                        .map {
-                            val total = it.value.fold(0.0) { acc, e -> acc + e.Price.toDouble() }
-                            // Кол-во уникальных пользователей, а не единиц техники
-                            val usersCount =
-                                it.value
-                                    .mapNotNull { e -> e.User }
-                                    .distinct()
-                                    .size
-                            CategoryStat(it.key, it.value.size, usersCount, total)
-                        }
-                        // По спецификации — лексикографический порядок по Category
-                        .sortedBy { it.Category }
+                    storage
+                        .getAllEquipment()
+                        .filter { it.ResponsiblePerson == currentUserId }
+                        .groupBy { it.Category }
+                        .entries
+                        .map { (category, items) ->
+                            val total = items.fold(0.0) { acc, e -> acc + e.Price.toDouble() }
+                            val usersCount = items.mapNotNull { it.User }.distinct().size
+                            CategoryStat(category, items.size, usersCount, total)
+                        }.sortedBy { it.Category } // Лексикографически
+
                 ok(mapOf("StatisticsByCategory" to stats))
             }
             "person" -> {
+                // Группировка по ИМЕНИ ответственного
                 val stats =
                     storage
                         .getAllEquipment()
                         .groupBy { equipment ->
-                            // Группируем по ФИО пользователя (Name), а не по UUID
-                            runCatching { java.util.UUID.fromString(equipment.ResponsiblePerson) }
-                                .getOrNull()
-                                ?.let { uuid -> storage.getUser(uuid)?.Name }
-                                ?: equipment.ResponsiblePerson
+                            val rpUuid = equipment.ResponsiblePerson
+                            storage.getUser(rpUuid)?.Name ?: "Unknown"
                         }.entries
-                        .map {
-                            val total = it.value.fold(0.0) { acc, e -> acc + e.Price.toDouble() }
-                            // Кол-во уникальных пользователей (User), использующих технику этого МОЛ
-                            val usersCount =
-                                it.value
-                                    .mapNotNull { e -> e.User }
-                                    .distinct()
-                                    .size
-                            PersonStat(it.key, it.value.size, usersCount, total)
-                        }
-                        // По спецификации — лексикографический порядок по Person
-                        .sortedBy { it.Person }
+                        .map { (personName, items) ->
+                            val total = items.fold(0.0) { acc, e -> acc + e.Price.toDouble() }
+                            val usersCount = items.mapNotNull { it.User }.distinct().size
+                            PersonStat(personName, items.size, usersCount, total)
+                        }.sortedBy { it.Person }
+
                 ok(mapOf("StatisticsByPerson" to stats))
             }
-            else -> json(Status.BAD_REQUEST, mapOf("error" to "Invalid by-type value. Use 'category' or 'person'"))
+            else -> throw ValidationException(
+                Status.BAD_REQUEST,
+                mapOf("by-type" to mapOf("Error" to "Invalid value. Use 'category' or 'person'")),
+            )
         }
     }

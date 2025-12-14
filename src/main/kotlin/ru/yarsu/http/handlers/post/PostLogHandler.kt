@@ -51,10 +51,6 @@ fun postLogHandler(storage: EquipmentStorage): HttpHandler =
                     return@restful json(Status.BAD_REQUEST, collectErrors())
                 }
 
-                if (equipmentId == null) {
-                    return@restful json(Status.BAD_REQUEST, collectErrors())
-                }
-
                 val logId = UUID.randomUUID()
                 storage.addLog(
                     ru.yarsu.Log(

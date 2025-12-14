@@ -4,55 +4,64 @@ import org.http4k.core.HttpHandler
 import org.http4k.core.Method
 import org.http4k.core.Status
 import ru.yarsu.EquipmentStorage
+import ru.yarsu.User
 import ru.yarsu.http.Route
+import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
 import java.time.LocalDateTime
 import java.util.UUID
 
-@Route(method = Method.POST, path = "/v2/users")
+@Route(method = Method.POST, path = "/v3/users")
 fun postUserHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        try {
+        val data =
             validateJson {
-                val name = requireText("Name")
-                val email = requireText("Email")
-                val position = requireText("Position")
-
-                if (hasErrors()) {
-                    return@restful json(Status.BAD_REQUEST, collectErrors())
-                }
-
-                if (name == null || email == null || position == null) {
-                    return@restful json(Status.BAD_REQUEST, collectErrors())
-                }
-
-                // Валидация email (базовая проверка)
-                if (!email.contains("@")) {
-                    validateBusiness(
-                        Result.failure<String>(
-                            ru.yarsu.http.handlers
-                                .FieldError("Email", root.get("Email")),
-                        ),
+                fun <T> requireOrThrow(
+                    value: T?,
+                    fieldName: String,
+                ): T =
+                    value ?: throw ValidationException(
+                        Status.BAD_REQUEST,
+                        mapOf(fieldName to mapOf("Error" to "Поле обязательно")),
                     )
-                    if (hasErrors()) {
-                        return@restful json(Status.BAD_REQUEST, collectErrors())
-                    }
+
+                object {
+                    val Name = requireTextAllowEmpty("Name") ?: ""
+                    val Email = requireTextAllowEmpty("Email") ?: ""
+                    val Position = requireTextAllowEmpty("Position") ?: ""
+
+                    // Новое поле Role
+                    val roleRaw = requireOrThrow(requireText("Role"), "Role")
+                    val Role =
+                        if (roleRaw in listOf("User", "Admin", "Manager")) {
+                            roleRaw
+                        } else {
+                            throw ValidationException(Status.BAD_REQUEST, mapOf("Role" to mapOf("Error" to "Invalid role")))
+                        }
                 }
-
-                val userId = UUID.randomUUID()
-                val newUser =
-                    ru.yarsu.User(
-                        Id = userId,
-                        Name = name,
-                        RegistrationDateTime = LocalDateTime.now(),
-                        Email = email,
-                        Position = position,
-                    )
-                storage.addUser(newUser)
-
-                created(mapOf("UserId" to userId.toString()))
             }
-        } catch (e: ru.yarsu.http.handlers.ValidationException) {
-            json(e.status, e.body)
+
+        if (!permissions.manageUsers) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
+
+        // Валидация Email (простая)
+        if (!data.Email.contains("@")) {
+            throw ValidationException(Status.BAD_REQUEST, mapOf("Email" to mapOf("Error" to "Invalid email")))
+        }
+
+        val userId = UUID.randomUUID()
+        val newUser =
+            User(
+                Id = userId,
+                Name = data.Name,
+                RegistrationDateTime = LocalDateTime.now(),
+                Email = data.Email,
+                Position = data.Position,
+                Role = data.Role,
+            )
+
+        storage.addUser(newUser)
+
+        created(newUser)
     }

@@ -11,6 +11,6 @@ data class Equipment(
     val IsUsed: Boolean,
     val Price: BigDecimal,
     val Location: String,
-    val ResponsiblePerson: String,
-    val User: String?,
+    val ResponsiblePerson: UUID,
+    val User: UUID?,
 )

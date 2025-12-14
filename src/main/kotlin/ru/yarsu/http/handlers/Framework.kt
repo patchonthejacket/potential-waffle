@@ -10,6 +10,10 @@ import org.http4k.filter.ServerFilters
 import org.http4k.lens.LensFailure
 import org.slf4j.MDC
 import ru.yarsu.EquipmentStorage
+import ru.yarsu.User
+import ru.yarsu.web.Permissions
+import ru.yarsu.web.currentUserLens
+import ru.yarsu.web.permissionsLens
 import java.math.BigDecimal
 import java.util.UUID
 import kotlin.system.measureTimeMillis
@@ -32,7 +36,6 @@ sealed class ApiResult {
         val body: Any,
     ) : ApiResult()
 
-    // 204 No Content без тела
     data object NoContent : ApiResult()
 
     data class Custom(
@@ -60,18 +63,17 @@ class JsonValidationContext(
 
     fun hasErrors(): Boolean = collectErrors().isNotEmpty()
 
-    // Хелперы для удобной валидации
-    fun requireText(field: String): String? = validate(requireTextField(root, field))
+    fun requireText(field: String) = validate(requireTextField(root, field))
 
-    fun requireTextAllowEmpty(field: String): String? = validate(requireTextFieldAllowEmpty(root, field))
+    fun requireTextAllowEmpty(field: String) = validate(requireTextFieldAllowEmpty(root, field))
 
-    fun requireNumber(field: String): BigDecimal? = validate(requireNumberField(root, field))
+    fun requireNumber(field: String) = validate(requireNumberField(root, field))
 
-    fun requireDate(field: String): String? = validate(requireDateField(root, field))
+    fun requireDate(field: String) = validate(requireDateField(root, field))
 
-    fun optionalText(field: String): String? = validate(validateOptionalTextField(root, field))
+    fun optionalText(field: String) = validate(validateOptionalTextField(root, field))
 
-    fun optionalTextAllowEmpty(field: String): String? = validate(validateOptionalTextFieldAllowEmpty(root, field))
+    fun optionalTextAllowEmpty(field: String) = validate(validateOptionalTextFieldAllowEmpty(root, field))
 
     fun optionalNumber(field: String): BigDecimal? {
         val node = root.get(field)
@@ -139,18 +141,24 @@ class JsonValidationContext(
     fun parseUuid(
         field: String,
         value: String,
-    ): Result<UUID> =
-        ru.yarsu.http.handlers
-            .parseUuid(field, value, root)
+    ) = parseUuid(field, value, root)
 
     fun validateCategory(value: String?): String? {
-        if (value == null) return null
+        if (value ==
+            null
+        ) {
+            return null
+        }
         validateBusiness(validateCategory(value, root))
         return value
     }
 
     fun validatePrice(value: BigDecimal?): BigDecimal? {
-        if (value == null) return null
+        if (value ==
+            null
+        ) {
+            return null
+        }
         validateBusiness(validatePrice(value, root))
         return value
     }
@@ -165,12 +173,9 @@ class JsonValidationContext(
                 explicitNull -> Result.success(null as String?)
                 node?.isTextual != true -> Result.failure(FieldError("User", node))
                 else -> {
-                    val text = node?.asText() ?: ""
-                    if (text.isBlank()) {
-                        Result.failure(FieldError("User", node))
-                    } else {
-                        Result.success(text)
-                    }
+                    val text =
+                        node?.asText() ?: ""
+                    if (text.isBlank()) Result.failure(FieldError("User", node)) else Result.success(text)
                 }
             }
         val value = validate(result)
@@ -187,12 +192,11 @@ class JsonValidationContext(
 class RequestScope(
     val req: Request,
     val storage: EquipmentStorage,
+    val user: User? = null,
+    val permissions: Permissions = Permissions.Guest,
 ) {
     fun pageParams(defaultPage: Int = 1): PageParams =
-        PageParams(
-            page = pageQueryLens(req),
-            recordsPerPage = getValidatedRecordsPerPage(req),
-        )
+        PageParams(page = pageQueryLens(req), recordsPerPage = getValidatedRecordsPerPage(req))
 
     fun <T> paginate(
         list: List<T>,
@@ -215,69 +219,69 @@ class RequestScope(
         val rootResult = validateJsonBody(rawBody)
         if (rootResult.isFailure) {
             val e = rootResult.exceptionOrNull()
-            val errorBody =
-                (e as? ValidationException)?.body
-                    ?: mapOf("Error" to "Некорректный JSON")
+            val errorBody = (e as? ValidationException)?.body ?: mapOf("Error" to "Некорректный JSON")
             throw ValidationException(Status.BAD_REQUEST, errorBody)
         }
         val root = rootResult.getOrNull() ?: throw ValidationException(Status.BAD_REQUEST, mapOf("Error" to "Некорректный JSON"))
         val context = JsonValidationContext(root, storage)
         return context.block()
     }
+
+    fun requirePermission(
+        condition: Boolean,
+        message: String = "Access denied",
+    ) {
+        if (!condition) throw ValidationException(Status.FORBIDDEN, mapOf("Error" to message))
+    }
 }
 
 private fun toResponse(result: ApiResult): Response =
     when (result) {
         is ApiResult.Ok ->
-            Response(Status.OK)
-                .header("Content-Type", "application/json; charset=utf-8")
-                .body(JsonMapper.toJson(result.body))
+            Response(
+                Status.OK,
+            ).header("Content-Type", "application/json; charset=utf-8").body(JsonMapper.toJson(result.body))
         is ApiResult.Created ->
-            Response(Status.CREATED)
-                .header("Content-Type", "application/json; charset=utf-8")
-                .body(JsonMapper.toJson(result.body))
+            Response(
+                Status.CREATED,
+            ).header("Content-Type", "application/json; charset=utf-8").body(JsonMapper.toJson(result.body))
         is ApiResult.NotFound ->
-            Response(Status.NOT_FOUND)
-                .header("Content-Type", "application/json; charset=utf-8")
-                .body(JsonMapper.toJson(result.body))
-        ApiResult.NoContent ->
-            Response(Status.NO_CONTENT)
+            Response(
+                Status.NOT_FOUND,
+            ).header("Content-Type", "application/json; charset=utf-8").body(JsonMapper.toJson(result.body))
+        ApiResult.NoContent -> Response(Status.NO_CONTENT)
         is ApiResult.Custom ->
-            Response(result.status)
-                .header("Content-Type", "application/json; charset=utf-8")
-                .body(JsonMapper.toJson(result.body))
+            Response(
+                result.status,
+            ).header("Content-Type", "application/json; charset=utf-8").body(JsonMapper.toJson(result.body))
     }
 
-// Фильтр для обработки ошибок линз
 private val lensFailureFilter =
     ServerFilters.CatchLensFailure { failure: LensFailure ->
         val errorMessage = failure.failures.joinToString(", ") { it.toString() }
-        Response(Status.BAD_REQUEST)
-            .header("Content-Type", "application/json; charset=utf-8")
-            .body(JsonMapper.toJson(mapOf("error" to errorMessage)))
+        Response(Status.BAD_REQUEST).header("Content-Type", "application/json; charset=utf-8").body(
+            JsonMapper.toJson(
+                mapOf("error" to errorMessage),
+            ),
+        )
     }
 
-// Фильтр для добавления content-type
 private val contentTypeFilter =
     ServerFilters.CatchAll { e: Throwable ->
-        Response(Status.INTERNAL_SERVER_ERROR)
-            .header("Content-Type", "application/json; charset=utf-8")
-            .body(JsonMapper.toJson(mapOf("error" to (e.message ?: "Internal server error"))))
+        Response(Status.INTERNAL_SERVER_ERROR).header("Content-Type", "application/json; charset=utf-8").body(
+            JsonMapper.toJson(
+                mapOf("error" to (e.message ?: "Internal server error")),
+            ),
+        )
     }
 
-// Фильтр для журналирования
 private val loggingFilter = { next: HttpHandler ->
     { req: Request ->
         MDC.put("http.method", req.method.name)
         MDC.put("http.path", req.uri.path)
         MDC.put("http.address", req.header("X-Forwarded-For") ?: req.uri.host)
-
         val response: Response
-        val time =
-            measureTimeMillis {
-                response = next(req)
-            }
-
+        val time = measureTimeMillis { response = next(req) }
         MDC.put("http.status", response.status.code.toString())
         MDC.put("http.time", time.toString())
         MDC.clear()
@@ -291,15 +295,33 @@ fun restful(
 ): HttpHandler {
     val handler: HttpHandler = { req ->
         try {
-            val scope = RequestScope(req, storage)
+            val user =
+                try {
+                    currentUserLens(req)
+                } catch (e: Exception) {
+                    null
+                }
+            val permissions =
+                try {
+                    permissionsLens(req)
+                } catch (e: Exception) {
+                    Permissions.Guest
+                }
+
+            val scope = RequestScope(req, storage, user, permissions)
             toResponse(scope.block())
         } catch (e: LensFailure) {
             Response(Status.BAD_REQUEST)
                 .header("Content-Type", "application/json; charset=utf-8")
                 .body(JsonMapper.toJson(mapOf("error" to e.failures.joinToString(", ") { it.toString() })))
+        } catch (e: ValidationException) {
+            Response(e.status)
+                .header("Content-Type", "application/json; charset=utf-8")
+                .body(JsonMapper.toJson(e.body))
         } catch (e: IllegalArgumentException) {
             jsonError(Status.BAD_REQUEST, e.message ?: "Bad request")
         } catch (e: Exception) {
+            e.printStackTrace()
             jsonError(Status.BAD_REQUEST, "Bad request")
         }
     }

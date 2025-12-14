@@ -2,29 +2,61 @@ package ru.yarsu.http.handlers.get
 
 import org.http4k.core.HttpHandler
 import org.http4k.core.Method
+import org.http4k.core.Status
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.http.Route
-import ru.yarsu.http.handlers.EquipmentByTime
+import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
 import java.time.LocalDate
+import java.time.LocalDateTime
 
-@Route(method = Method.GET, path = "/v2/equipment/by-time")
+@Route(method = Method.GET, path = "/v3/equipment/by-time")
 fun byTimeHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        val timeStr = req.query("time") ?: throw IllegalArgumentException("Missing required parameter: time")
-        val time =
+        val timeStr =
+            req.query("time")
+                ?: throw ValidationException(Status.BAD_REQUEST, mapOf("time" to mapOf("Error" to "Missing required parameter")))
+
+        val targetDate =
             try {
-                java.time.LocalDateTime.parse(timeStr)
+                // Парсим LocalDateTime, поддерживая формат с миллисекундами и без
+                val dateTime =
+                    if (timeStr.contains(".")) {
+                        // Формат с миллисекундами: 2024-01-01T00:00:00.000
+                        val parts = timeStr.split(".")
+                        LocalDateTime.parse(parts[0])
+                    } else {
+                        LocalDateTime.parse(timeStr)
+                    }
+                dateTime.toLocalDate()
             } catch (e: Exception) {
-                throw IllegalArgumentException("Invalid time format. Expected ISO 8601 format (e.g., 2024-12-31T00:00:00)")
+                throw ValidationException(Status.BAD_REQUEST, mapOf("Error" to "Некорректные значения параметров"))
             }
+
         val params = pageParams()
+
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val filtered =
             storage
                 .getAllEquipment()
-                .filter { LocalDate.parse(it.GuaranteeDate) <= time.toLocalDate() }
-                .sortedWith(compareBy({ it.Category }, { it.Id }))
-        val paginated = paginate(filtered, params)
-        val items = paginated.map { EquipmentByTime(it.Id.toString(), it.Equipment, it.GuaranteeDate) }
-        ok(items)
+                .filter {
+                    try {
+                        LocalDate.parse(it.GuaranteeDate) <= targetDate
+                    } catch (e: Exception) {
+                        false
+                    }
+                }.sortedWith(compareBy<ru.yarsu.Equipment> { it.Category }.thenBy { it.Id })
+        val items =
+            filtered.map {
+                ru.yarsu.http.handlers.EquipmentListItem(
+                    Id = it.Id.toString(),
+                    Equipment = it.Equipment,
+                    IsUsed = it.IsUsed,
+                )
+            }
+
+        ok(paginate(items, params))
     }

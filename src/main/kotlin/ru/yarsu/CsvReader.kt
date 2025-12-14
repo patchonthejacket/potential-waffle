@@ -18,7 +18,10 @@ object CsvReader {
             val isUsedStr = row["IsUsed"] ?: throw IllegalArgumentException("Missing field: IsUsed")
             val priceStr = row["Price"] ?: throw IllegalArgumentException("Missing field: Price")
             val location = row["Location"] ?: throw IllegalArgumentException("Missing field: Location")
-            val responsible = row["ResponsiblePerson"] ?: throw IllegalArgumentException("Missing field: ResponsiblePerson")
+
+            // Читаем как UUID
+            val responsibleStr = row["ResponsiblePerson"] ?: throw IllegalArgumentException("Missing field: ResponsiblePerson")
+            val userStr = row["User"]
 
             Equipment(
                 Id = UUID.fromString(id),
@@ -28,12 +31,14 @@ object CsvReader {
                 IsUsed = isUsedStr.toBoolean(),
                 Price = BigDecimal(priceStr),
                 Location = location,
-                ResponsiblePerson = responsible,
-                User = row["User"].takeUnless { it.isNullOrBlank() },
+                // Преобразуем String -> UUID
+                ResponsiblePerson = UUID.fromString(responsibleStr),
+                User = if (userStr.isNullOrBlank()) null else UUID.fromString(userStr),
             )
         }
     }
 
+    // readLog можно оставить как есть, или тоже поменять ResponsiblePerson на UUID, если в логах хранятся ID
     fun readLog(filePath: String): List<Log> {
         val file = File(filePath)
         if (!file.exists()) throw IllegalArgumentException("Файл не найден: $filePath")
@@ -48,7 +53,7 @@ object CsvReader {
             Log(
                 Id = UUID.fromString(id),
                 Equipment = UUID.fromString(equipmentId),
-                ResponsiblePerson = responsible,
+                ResponsiblePerson = responsible, // Здесь можно оставить String (имя), так как это история
                 Operation = operation,
                 Text = text,
                 LogDateTime = LocalDateTime.parse(dt),
@@ -56,6 +61,7 @@ object CsvReader {
         }
     }
 
+    // readUsers мы уже обновляли (добавили Role)
     fun readUsers(filePath: String): List<User> {
         val file = File(filePath)
         if (!file.exists()) throw IllegalArgumentException("Файл не найден: $filePath")
@@ -65,6 +71,7 @@ object CsvReader {
             val regDateTime = row["RegistrationDateTime"] ?: throw IllegalArgumentException("Missing field: RegistrationDateTime")
             val email = row["Email"] ?: throw IllegalArgumentException("Missing field: Email")
             val position = row["Position"] ?: throw IllegalArgumentException("Missing field: Position")
+            val role = row["Role"] ?: "User"
 
             User(
                 Id = UUID.fromString(id),
@@ -72,6 +79,7 @@ object CsvReader {
                 RegistrationDateTime = LocalDateTime.parse(regDateTime),
                 Email = email,
                 Position = position,
+                Role = role,
             )
         }
     }
