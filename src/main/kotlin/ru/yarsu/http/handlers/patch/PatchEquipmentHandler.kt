@@ -52,23 +52,8 @@ fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                 throw ValidationException(Status.BAD_REQUEST, collectErrors())
             }
 
-            if (!permissions.manageAllEquipment) {
-                if (user == null) {
-                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-                }
-
-                val isOwner = existing.User == user.Id
-                if (!isOwner) {
-                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-                }
-
-                // Пользователь с ролью User может изменять только Location, Operation, Text
-                if (equipmentName != null || category != null || price != null ||
-                    userField.fieldProvided || // Пытался передать поле User
-                    guaranteeDate != null || responsiblePersonUuid != null
-                ) {
-                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-                }
+            if (user == null) {
+                throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
             }
 
             var updatedResult = existing
@@ -116,19 +101,11 @@ fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                         LogDateTime = LocalDateTime.now(),
                     ),
                 )
-                // При изменении Location пользователем с ролью User возвращаем 204
-                if (!permissions.manageAllEquipment && location != null &&
-                    equipmentName == null && category == null && price == null &&
-                    !userField.fieldProvided && guaranteeDate == null && responsiblePersonUuid == null
-                ) {
-                    ApiResult.NoContent
-                } else {
-                    // Для Admin/Manager возвращаем 201 Created с EquipmentId
-                    created(
-                        ru.yarsu.http.handlers
-                            .EquipmentResponse(EquipmentId = id.toString(), LogId = logId.toString()),
-                    )
-                }
+                // For successful edit, return 201 with EquipmentId and LogId
+                created(
+                    ru.yarsu.http.handlers
+                        .EquipmentResponse(EquipmentId = id.toString(), LogId = logId.toString()),
+                )
             } else {
                 ApiResult.NoContent
             }

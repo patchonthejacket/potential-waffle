@@ -20,7 +20,7 @@ fun deleteEquipmentHandler(storage: EquipmentStorage): HttpHandler =
 
         val existing =
             storage.getEquipment(id)
-                ?: return@restful notFound(mapOf("Error" to "Оборудование не найдено"))
+                ?: return@restful notFound(mapOf("Error" to "Оборудование не найдено", "EquipmentId" to id.toString()))
 
         if (!permissions.manageAllEquipment) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
@@ -34,7 +34,7 @@ fun deleteEquipmentHandler(storage: EquipmentStorage): HttpHandler =
             storage.removeEquipment(id)
             ok(
                 ru.yarsu.http.handlers
-                    .EquipmentResponse(EquipmentId = id.toString()),
+                    .EquipmentResponse(EquipmentId = id.toString(), LogId = null),
             )
         } else {
             // Если есть журнал, создаем запись и возвращаем 200 OK с EquipmentId и LogId

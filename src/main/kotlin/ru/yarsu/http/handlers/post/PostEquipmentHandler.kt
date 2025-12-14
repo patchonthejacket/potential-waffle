@@ -26,35 +26,49 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                         mapOf(fieldName to mapOf("Error" to "Поле обязательно")),
                     )
 
-                object {
-                    val Equipment = requireTextAllowEmpty("Equipment") ?: ""
-                    val rawCat = requireOrThrow(requireText("Category"), "Category")
-                    val Category =
-                        validateCategory(rawCat)
-                            ?: throw ValidationException(Status.BAD_REQUEST, mapOf("Category" to mapOf("Error" to "Неверная категория")))
-
-                    val GuaranteeDate = requireOrThrow(requireDate("GuaranteeDate"), "GuaranteeDate")
-                    val Price = requireOrThrow(requireNumber("Price"), "Price")
-                    val Location = requireTextAllowEmpty("Location") ?: ""
-
-                    // User (UUID?), если передан
-                    val userText = optionalTextAllowEmpty("User")
-                    val User =
-                        if (!userText.isNullOrBlank()) {
-                            validateUserUuid("User", userText)
+                val obj =
+                    object {
+                        val Equipment = requireTextAllowEmpty("Equipment") ?: ""
+                        val rawCat = requireOrThrow(requireText("Category"), "Category")
+                        val Category =
+                            validateCategory(rawCat)
                                 ?: throw ValidationException(
                                     Status.BAD_REQUEST,
-                                    mapOf("User" to mapOf("Error" to "Пользователь не найден")),
+                                    mapOf("Category" to mapOf("Error" to "Неверная категория")),
                                 )
-                        } else {
-                            null
-                        }
 
-                    // Поля для журнала (Operation, Text) при создании
-                    val Operation = requireOrThrow(requireText("Operation"), "Operation")
-                    val Text = requireOrThrow(requireText("Text"), "Text")
+                        val GuaranteeDate = requireOrThrow(requireDate("GuaranteeDate"), "GuaranteeDate")
+                        val Price = requireOrThrow(requireNumber("Price"), "Price")
+                        val Location = requireTextAllowEmpty("Location") ?: ""
+
+                        // User (UUID?), если передан
+                        val userText = optionalTextAllowEmpty("User")
+                        val User =
+                            if (!userText.isNullOrBlank()) {
+                                validateUserUuid("User", userText)
+                                    ?: throw ValidationException(
+                                        Status.BAD_REQUEST,
+                                        mapOf("User" to mapOf("Error" to "Пользователь не найден")),
+                                    )
+                            } else {
+                                null
+                            }
+
+                        // Поля для журнала (Operation, Text) при создании
+                        val Operation = requireOrThrow(requireTextAllowEmpty("Operation"), "Operation") ?: ""
+                        val Text = requireOrThrow(requireTextAllowEmpty("Text"), "Text") ?: ""
+                    }
+
+                if (hasErrors()) {
+                    throw ValidationException(Status.BAD_REQUEST, collectErrors())
                 }
+
+                obj
             }
+
+        // if (!permissions.manageAllEquipment) {
+        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        // }
 
         if (user == null) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))

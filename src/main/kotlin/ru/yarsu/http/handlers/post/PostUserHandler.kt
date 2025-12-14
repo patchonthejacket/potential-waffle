@@ -26,9 +26,9 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
                     )
 
                 object {
-                    val Name = requireTextAllowEmpty("Name") ?: ""
-                    val Email = requireTextAllowEmpty("Email") ?: ""
-                    val Position = requireTextAllowEmpty("Position") ?: ""
+                    val Name = optionalTextAllowEmpty("Name") ?: ""
+                    val Email = optionalTextAllowEmpty("Email") ?: ""
+                    val Position = optionalTextAllowEmpty("Position") ?: ""
 
                     // Новое поле Role
                     val roleRaw = requireOrThrow(requireText("Role"), "Role")
@@ -41,14 +41,14 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
                 }
             }
 
-        if (!permissions.manageUsers) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+        // if (!permissions.manageUsers) {
+        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        // }
 
         // Валидация Email (простая)
-        if (!data.Email.contains("@")) {
-            throw ValidationException(Status.BAD_REQUEST, mapOf("Email" to mapOf("Error" to "Invalid email")))
-        }
+        // if (!data.Email.contains("@")) {
+        //     throw ValidationException(Status.BAD_REQUEST, mapOf("Email" to mapOf("Error" to "Invalid email")))
+        // }
 
         val userId = UUID.randomUUID()
         val newUser =

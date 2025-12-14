@@ -13,6 +13,10 @@ import java.time.LocalDateTime
 @Route(method = Method.GET, path = "/v3/equipment/by-time")
 fun byTimeHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val timeStr =
             req.query("time")
                 ?: throw ValidationException(Status.BAD_REQUEST, mapOf("time" to mapOf("Error" to "Missing required parameter")))
@@ -34,10 +38,6 @@ fun byTimeHandler(storage: EquipmentStorage): HttpHandler =
             }
 
         val params = pageParams()
-
-        if (user == null) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
 
         val filtered =
             storage
