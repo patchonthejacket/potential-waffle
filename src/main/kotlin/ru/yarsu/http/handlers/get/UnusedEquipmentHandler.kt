@@ -40,10 +40,9 @@ fun unusedEquipmentHandler(storage: EquipmentStorage): HttpHandler =
         val sorted = filtered.sortedWith(compareBy<ru.yarsu.Equipment> { it.Category }.thenBy { it.Id })
         val items =
             sorted.map {
-                ru.yarsu.http.handlers.EquipmentListItem(
+                ru.yarsu.http.handlers.EquipmentUnusedItem(
                     Id = it.Id.toString(),
                     Equipment = it.Equipment,
-                    IsUsed = it.IsUsed,
                 )
             }
 

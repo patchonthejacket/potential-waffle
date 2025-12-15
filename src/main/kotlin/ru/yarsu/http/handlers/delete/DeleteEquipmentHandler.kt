@@ -16,43 +16,20 @@ import java.util.UUID
 @Route(method = Method.DELETE, path = "/v3/equipment/{equipment-id}")
 fun deleteEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val id = equipmentIdPathLens(req)
 
         val existing =
             storage.getEquipment(id)
                 ?: return@restful notFound(mapOf("Error" to "Оборудование не найдено"))
 
-        if (!permissions.manageAllEquipment) {
+        if (!permissions.manageAllEquipment && existing.ResponsiblePerson != user?.Id) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
-        val currentUser = user
-        val logs = storage.getLogsByEquipment(id)
-
-        if (logs.isEmpty()) {
-            // Если нет журнала, возвращаем 200 OK с EquipmentId
-            storage.removeEquipment(id)
-            ok(
-                ru.yarsu.http.handlers
-                    .EquipmentResponse(EquipmentId = id.toString()),
-            )
-        } else {
-            // Если есть журнал, создаем запись и возвращаем 200 OK с EquipmentId и LogId
-            val logId = UUID.randomUUID()
-            storage.addLog(
-                Log(
-                    Id = logId,
-                    Equipment = id,
-                    ResponsiblePerson = currentUser?.Id.toString(),
-                    Operation = "Списание: ${existing.Equipment}",
-                    Text = "",
-                    LogDateTime = LocalDateTime.now(),
-                ),
-            )
-            storage.removeEquipment(id)
-            ok(
-                ru.yarsu.http.handlers
-                    .EquipmentResponse(EquipmentId = id.toString(), LogId = logId.toString()),
-            )
-        }
+        storage.removeEquipment(id)
+        ok(mapOf("Id" to id.toString()))
     }

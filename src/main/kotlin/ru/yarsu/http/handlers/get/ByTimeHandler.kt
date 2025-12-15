@@ -51,10 +51,10 @@ fun byTimeHandler(storage: EquipmentStorage): HttpHandler =
                 }.sortedWith(compareBy<ru.yarsu.Equipment> { it.Category }.thenBy { it.Id })
         val items =
             filtered.map {
-                ru.yarsu.http.handlers.EquipmentListItem(
+                ru.yarsu.http.handlers.EquipmentByTimeItem(
                     Id = it.Id.toString(),
                     Equipment = it.Equipment,
-                    IsUsed = it.IsUsed,
+                    GuaranteeDate = it.GuaranteeDate,
                 )
             }
 

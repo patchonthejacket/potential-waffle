@@ -45,10 +45,7 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
-        // Валидация Email (простая)
-        if (!data.Email.contains("@")) {
-            throw ValidationException(Status.BAD_REQUEST, mapOf("Email" to mapOf("Error" to "Invalid email")))
-        }
+        // Валидация Email (простая) - убрана, так как пустой разрешен
 
         val userId = UUID.randomUUID()
         val newUser =
@@ -63,5 +60,5 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
 
         storage.addUser(newUser)
 
-        created(newUser)
+        created(mapOf("Id" to userId.toString()))
     }

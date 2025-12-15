@@ -60,6 +60,10 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
+        if (!permissions.manageAllEquipment) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val currentUser = user ?: throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Auth required"))
 
         val newId = UUID.randomUUID()
@@ -90,8 +94,5 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
             ),
         )
 
-        created(
-            ru.yarsu.http.handlers
-                .EquipmentResponse(EquipmentId = newId.toString(), LogId = logId.toString()),
-        )
+        created(mapOf("Id" to newId.toString()))
     }

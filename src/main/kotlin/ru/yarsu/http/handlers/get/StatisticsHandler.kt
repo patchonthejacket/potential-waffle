@@ -45,6 +45,9 @@ fun statisticsHandler(storage: EquipmentStorage): HttpHandler =
                 ok(mapOf("StatisticsByCategory" to stats))
             }
             "person" -> {
+                if (!permissions.manageAllEquipment) {
+                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+                }
                 // Группировка по ИМЕНИ ответственного
                 val stats =
                     storage

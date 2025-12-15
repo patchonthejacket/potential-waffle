@@ -8,6 +8,17 @@ data class EquipmentListItem(
     val IsUsed: Boolean,
 )
 
+data class EquipmentUnusedItem(
+    val Id: String,
+    val Equipment: String,
+)
+
+data class EquipmentByTimeItem(
+    val Id: String,
+    val Equipment: String,
+    val GuaranteeDate: String,
+)
+
 @JsonPropertyOrder(
     *[
         "id",

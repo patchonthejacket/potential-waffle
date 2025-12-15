@@ -16,121 +16,112 @@ import java.util.UUID
 @Route(method = Method.PATCH, path = "/v3/equipment/{equipment-id}")
 fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val id = equipmentIdPathLens(req)
 
-        validateJson {
-            val existing =
-                storage.getEquipment(id)
-                    ?: return@restful notFound(mapOf("Error" to "Equipment not found", "EquipmentId" to id.toString()))
-            val equipmentName = optionalTextAllowEmpty("Equipment")
-            val category = optionalCategory("Category")
-            val guaranteeDate = optionalDate("GuaranteeDate")
-            val priceRaw = optionalNumber("Price")
-            val price = priceRaw?.let { validatePrice(it) }
-            val location = optionalTextAllowEmpty("Location")
+        val existing =
+            storage.getEquipment(id)
+                ?: return@restful notFound(mapOf("Error" to "Оборудование не найдено"))
 
-            val responsiblePersonStr = optionalTextAllowEmpty("ResponsiblePerson")
-            val responsiblePersonUuid =
-                if (responsiblePersonStr != null) {
-                    validateResponsiblePersonUuid("ResponsiblePerson", responsiblePersonStr)
-                } else {
-                    null
-                }
+        if (!permissions.manageAllEquipment && existing.ResponsiblePerson != user?.Id) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
 
-            val userField = validateUserField()
-            val userUuid =
-                if (userField.fieldProvided && !userField.explicitNull && userField.value != null) {
-                    validateUserUuid("User", userField.value)
-                } else {
-                    null
-                }
+        val data =
+            validateJson {
+                val equipmentName = optionalTextAllowEmpty("Equipment")
+                val categoryRaw = optionalText("Category")
+                val category = categoryRaw?.let { validateCategory(it) }
+                val guaranteeDate = optionalDate("GuaranteeDate")
+                val priceRaw = optionalNumber("Price")
+                val price = priceRaw?.let { validatePrice(it) }
+                val location = optionalTextAllowEmpty("Location")
 
-            val operation = requireText("Operation")
-            val text = requireTextAllowEmpty("Text")
-
-            if (hasErrors()) {
-                throw ValidationException(Status.BAD_REQUEST, collectErrors())
-            }
-
-            if (!permissions.manageAllEquipment) {
-                if (user == null) {
-                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-                }
-
-                val isOwner = existing.User == user.Id
-                if (!isOwner) {
-                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-                }
-
-                // Пользователь с ролью User может изменять только Location, Operation, Text
-                if (equipmentName != null || category != null || price != null ||
-                    userField.fieldProvided || // Пытался передать поле User
-                    guaranteeDate != null || responsiblePersonUuid != null
-                ) {
-                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-                }
-            }
-
-            var updatedResult = existing
-            var changed = false
-
-            storage.updateEquipment(id) { eq ->
-                val newUserUuid: UUID? =
-                    when {
-                        !userField.fieldProvided -> eq.User
-                        userField.explicitNull -> null
-                        userUuid != null -> userUuid
-                        else -> eq.User
+                val responsiblePersonStr = optionalTextAllowEmpty("ResponsiblePerson")
+                val responsiblePersonUuid =
+                    if (responsiblePersonStr != null) {
+                        validateResponsiblePersonUuid("ResponsiblePerson", responsiblePersonStr)
+                    } else {
+                        null
                     }
 
-                val newRpUuid: UUID = responsiblePersonUuid ?: eq.ResponsiblePerson
+                val userField = validateUserField()
+                val userUuid =
+                    if (userField.fieldProvided && !userField.explicitNull && userField.value != null) {
+                        validateUserUuid("User", userField.value)
+                    } else {
+                        null
+                    }
 
-                val updated =
-                    eq.copy(
-                        Equipment = if (equipmentName != null) equipmentName else eq.Equipment,
-                        Category = category ?: eq.Category,
-                        GuaranteeDate = guaranteeDate ?: eq.GuaranteeDate,
-                        IsUsed = newUserUuid != null,
-                        Price = price ?: eq.Price,
-                        Location = if (location != null) location else eq.Location,
-                        ResponsiblePerson = newRpUuid,
-                        User = newUserUuid,
-                    )
+                val operation = requireText("Operation")
+                val text = requireTextAllowEmpty("Text")
 
-                if (updated != eq) {
-                    changed = true
-                    updatedResult = updated
+                if (hasErrors()) {
+                    throw ValidationException(Status.BAD_REQUEST, collectErrors())
                 }
-                updated
+
+                object {
+                    val equipmentName = equipmentName
+                    val category = category
+                    val guaranteeDate = guaranteeDate
+                    val price = price
+                    val location = location
+                    val responsiblePersonUuid = responsiblePersonUuid
+                    val userUuid = userUuid
+                    val operation = operation
+                    val text = text
+                }
             }
 
-            if (changed) {
-                val logId = UUID.randomUUID()
-                storage.addLog(
-                    Log(
-                        Id = logId,
-                        Equipment = id,
-                        ResponsiblePerson = user?.Id?.toString() ?: "Unknown",
-                        Operation = operation.toString(),
-                        Text = text.toString(),
-                        LogDateTime = LocalDateTime.now(),
-                    ),
+        var updatedResult = existing
+        var changed = false
+
+        storage.updateEquipment(id) { eq ->
+            val newUserUuid: UUID? =
+                when {
+                    data.userUuid != null -> data.userUuid
+                    else -> eq.User
+                }
+
+            val newRpUuid: UUID = data.responsiblePersonUuid ?: eq.ResponsiblePerson
+
+            val updated =
+                eq.copy(
+                    Equipment = data.equipmentName ?: eq.Equipment,
+                    Category = data.category ?: eq.Category,
+                    GuaranteeDate = data.guaranteeDate ?: eq.GuaranteeDate,
+                    IsUsed = newUserUuid != null,
+                    Price = data.price ?: eq.Price,
+                    Location = data.location ?: eq.Location,
+                    ResponsiblePerson = newRpUuid,
+                    User = newUserUuid,
                 )
-                // При изменении Location пользователем с ролью User возвращаем 204
-                if (!permissions.manageAllEquipment && location != null &&
-                    equipmentName == null && category == null && price == null &&
-                    !userField.fieldProvided && guaranteeDate == null && responsiblePersonUuid == null
-                ) {
-                    ApiResult.NoContent
-                } else {
-                    // Для Admin/Manager возвращаем 201 Created с EquipmentId
-                    created(
-                        ru.yarsu.http.handlers
-                            .EquipmentResponse(EquipmentId = id.toString(), LogId = logId.toString()),
-                    )
-                }
-            } else {
-                ApiResult.NoContent
+
+            if (updated != eq) {
+                changed = true
+                updatedResult = updated
             }
+            updated
+        }
+
+        if (changed) {
+            val logId = UUID.randomUUID()
+            storage.addLog(
+                Log(
+                    Id = logId,
+                    Equipment = id,
+                    ResponsiblePerson = user?.Id?.toString() ?: "Unknown",
+                    Operation = data.operation.toString(),
+                    Text = data.text.toString(),
+                    LogDateTime = LocalDateTime.now(),
+                ),
+            )
+            // For successful edit, return 200 with Id
+            ok(mapOf("Id" to id.toString()))
+        } else {
+            ApiResult.NoContent
         }
     }

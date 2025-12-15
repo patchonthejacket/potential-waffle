@@ -224,7 +224,11 @@ class RequestScope(
         }
         val root = rootResult.getOrNull() ?: throw ValidationException(Status.BAD_REQUEST, mapOf("Error" to "Некорректный JSON"))
         val context = JsonValidationContext(root, storage)
-        return context.block()
+        val result = context.block()
+        if (context.hasErrors()) {
+            throw ValidationException(Status.BAD_REQUEST, context.collectErrors())
+        }
+        return result
     }
 
     fun requirePermission(
