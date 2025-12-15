@@ -24,49 +24,35 @@ fun statisticsHandler(storage: EquipmentStorage): HttpHandler =
 
         when (byType) {
             "category" -> {
-                if (!permissions.manageAllEquipment) {
-                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-                }
-
-                // Учитываем только технику под ответственностью текущего пользователя (Admin)
-                val currentUserId = user?.Id
                 val stats =
                     storage
                         .getAllEquipment()
-                        .filter { it.ResponsiblePerson == currentUserId }
                         .groupBy { it.Category }
                         .entries
                         .map { (category, items) ->
                             val total = items.fold(0.0) { acc, e -> acc + e.Price.toDouble() }
                             val usersCount = items.mapNotNull { it.User }.distinct().size
                             CategoryStat(category, items.size, usersCount, total)
-                        }.sortedBy { it.Category } // Лексикографически
+                        }.sortedBy { it.Category }
 
                 ok(mapOf("StatisticsByCategory" to stats))
             }
             "person" -> {
-                if (!permissions.manageAllEquipment) {
-                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-                }
-                // Группировка по ИМЕНИ ответственного
                 val stats =
                     storage
                         .getAllEquipment()
-                        .groupBy { equipment ->
-                            val rpUuid = equipment.ResponsiblePerson
-                            storage.getUser(rpUuid)?.Name ?: "Unknown"
-                        }.entries
-                        .map { (personName, items) ->
+                        .groupBy { it.ResponsiblePerson }
+                        .entries
+                        .map { (personId, items) ->
+                            val person = storage.getUser(personId)
+                            val personName = person?.Name ?: "Unknown"
                             val total = items.fold(0.0) { acc, e -> acc + e.Price.toDouble() }
                             val usersCount = items.mapNotNull { it.User }.distinct().size
                             PersonStat(personName, items.size, usersCount, total)
-                        }.sortedBy { it.Person }
+                        }.sortedByDescending { it.Person }
 
                 ok(mapOf("StatisticsByPerson" to stats))
             }
-            else -> throw ValidationException(
-                Status.BAD_REQUEST,
-                mapOf("by-type" to mapOf("Error" to "Invalid value. Use 'category' or 'person'")),
-            )
+            else -> throw ValidationException(Status.BAD_REQUEST, mapOf("by-type" to mapOf("Error" to "Invalid by-type parameter")))
         }
     }

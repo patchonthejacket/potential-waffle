@@ -29,7 +29,7 @@ fun getLogHandler(storage: EquipmentStorage): HttpHandler =
                 storage.getAllLogs()
             }
 
-        val sorted = logs.sortedWith(compareByDescending<ru.yarsu.Log> { it.LogDateTime }.thenByDescending { it.Id })
+        val sorted = logs.sortedWith(compareBy<ru.yarsu.Log> { it.LogDateTime }.thenByDescending { it.Id })
 
         ok(paginate(sorted, params))
     }
