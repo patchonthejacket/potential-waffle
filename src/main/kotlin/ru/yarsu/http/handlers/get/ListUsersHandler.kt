@@ -5,6 +5,7 @@ import org.http4k.core.Method
 import org.http4k.core.Status
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.User
+import ru.yarsu.UserRole
 import ru.yarsu.http.Route
 import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
@@ -14,7 +15,7 @@ fun listUsersHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
         val params = pageParams()
 
-        if (!permissions.manageUsers) {
+        if (user?.Role != UserRole.Manager) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
         val sorted = storage.getAllUsers().sortedWith(compareByDescending<User> { it.Name }.thenBy { it.Id })

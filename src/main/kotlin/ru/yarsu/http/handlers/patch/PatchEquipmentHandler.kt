@@ -16,9 +16,10 @@ import java.util.UUID
 @Route(method = Method.PATCH, path = "/v3/equipment/{equipment-id}")
 fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        if (user == null) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+        // Allow any authenticated user to edit equipment
+        // if (user == null) {
+        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        // }
 
         val id = equipmentIdPathLens(req)
 

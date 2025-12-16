@@ -8,6 +8,7 @@ import org.http4k.core.HttpHandler
 import org.http4k.core.Request
 import org.http4k.core.with
 import ru.yarsu.EquipmentStorage
+import ru.yarsu.UserRole
 import java.util.UUID
 
 fun authFilter(
@@ -19,8 +20,6 @@ fun authFilter(
             val authHeader = req.header("Authorization")
             var requestWithAuth = req
 
-            requestWithAuth = requestWithAuth.with(permissionsLens of Permissions.Guest)
-
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 val token = authHeader.removePrefix("Bearer ").trim()
 
@@ -30,17 +29,9 @@ fun authFilter(
                     val user = storage.getUser(userId)
 
                     if (user != null) {
-                        val perms =
-                            when (user.Role) {
-                                "Admin" -> Permissions.Admin
-                                "Manager" -> Permissions.Manager
-                                else -> Permissions.User
-                            }
-
                         requestWithAuth =
                             requestWithAuth.with(
                                 currentUserLens of user,
-                                permissionsLens of perms,
                             )
                     }
                 }

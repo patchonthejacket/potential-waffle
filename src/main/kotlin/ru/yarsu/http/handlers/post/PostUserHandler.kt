@@ -5,6 +5,7 @@ import org.http4k.core.Method
 import org.http4k.core.Status
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.User
+import ru.yarsu.UserRole
 import ru.yarsu.http.Route
 import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
@@ -14,6 +15,10 @@ import java.util.UUID
 @Route(method = Method.POST, path = "/v3/users")
 fun postUserHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user?.Role != UserRole.Manager) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val data =
             try {
                 validateJson {
@@ -24,12 +29,7 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
 
                         // Новое поле Role
                         val roleRaw = optionalTextAllowEmpty("Role") ?: ""
-                        val Role =
-                            if (roleRaw.isEmpty() || roleRaw in listOf("User", "Admin", "Manager")) {
-                                roleRaw.ifEmpty { "User" } // default to User if empty
-                            } else {
-                                roleRaw // invalid, but we will check later
-                            }
+                        val Role = roleRaw
                     }
                 }
             } catch (e: ValidationException) {
@@ -47,7 +47,13 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
         if (data.Position.isBlank()) {
             errors["Position"] = mapOf("Error" to "Поле обязательно")
         }
-        if (data.Role !in listOf("User", "Admin", "Manager")) {
+        val roleEnum =
+            try {
+                enumValueOf<UserRole>(data.Role)
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+        if (roleEnum == null) {
             errors["Role"] = mapOf("Error" to "Invalid role")
         }
 
@@ -55,7 +61,7 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
             return@restful ok(errors)
         }
 
-        if (!permissions.manageUsers) {
+        if (user?.Role != UserRole.Manager) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
@@ -69,7 +75,7 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
                 RegistrationDateTime = LocalDateTime.now(),
                 Email = data.Email,
                 Position = data.Position,
-                Role = data.Role,
+                Role = roleEnum ?: UserRole.User,
             )
 
         storage.addUser(newUser)

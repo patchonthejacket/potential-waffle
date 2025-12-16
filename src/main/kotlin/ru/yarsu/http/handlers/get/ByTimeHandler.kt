@@ -4,6 +4,7 @@ import org.http4k.core.HttpHandler
 import org.http4k.core.Method
 import org.http4k.core.Status
 import ru.yarsu.EquipmentStorage
+import ru.yarsu.UserRole
 import ru.yarsu.http.Route
 import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
@@ -13,7 +14,7 @@ import java.time.LocalDateTime
 @Route(method = Method.GET, path = "/v3/equipment/by-time")
 fun byTimeHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        if (!permissions.manageAllEquipment) {
+        if (user?.Role != UserRole.Admin) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 

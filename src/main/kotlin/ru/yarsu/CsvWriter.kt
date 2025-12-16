@@ -54,7 +54,7 @@ object CsvWriter {
     ) {
         val file = File(filePath)
         csvWriter().open(file) {
-            writeRow("Id", "Name", "RegistrationDateTime", "Email", "Position")
+            writeRow("Id", "Name", "RegistrationDateTime", "Email", "Position", "Role")
             users.forEach { user ->
                 writeRow(
                     user.Id.toString(),
@@ -62,6 +62,7 @@ object CsvWriter {
                     user.RegistrationDateTime.toString(),
                     user.Email,
                     user.Position,
+                    user.Role.name,
                 )
             }
         }

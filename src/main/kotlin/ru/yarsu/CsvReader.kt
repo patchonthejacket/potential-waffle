@@ -31,14 +31,12 @@ object CsvReader {
                 IsUsed = isUsedStr.toBoolean(),
                 Price = BigDecimal(priceStr),
                 Location = location,
-                // Преобразуем String -> UUID
                 ResponsiblePerson = UUID.fromString(responsibleStr),
                 User = if (userStr.isNullOrBlank()) null else UUID.fromString(userStr),
             )
         }
     }
 
-    // readLog можно оставить как есть, или тоже поменять ResponsiblePerson на UUID, если в логах хранятся ID
     fun readLog(filePath: String): List<Log> {
         val file = File(filePath)
         if (!file.exists()) throw IllegalArgumentException("Файл не найден: $filePath")
@@ -71,7 +69,13 @@ object CsvReader {
             val regDateTime = row["RegistrationDateTime"] ?: throw IllegalArgumentException("Missing field: RegistrationDateTime")
             val email = row["Email"] ?: throw IllegalArgumentException("Missing field: Email")
             val position = row["Position"] ?: throw IllegalArgumentException("Missing field: Position")
-            val role = row["Role"] ?: "User"
+            val roleStr = row["Role"] ?: "User"
+            val role =
+                try {
+                    enumValueOf<UserRole>(roleStr)
+                } catch (e: IllegalArgumentException) {
+                    UserRole.User // default
+                }
 
             User(
                 Id = UUID.fromString(id),

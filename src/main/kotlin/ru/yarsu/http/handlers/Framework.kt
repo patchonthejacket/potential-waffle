@@ -11,9 +11,7 @@ import org.http4k.lens.LensFailure
 import org.slf4j.MDC
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.User
-import ru.yarsu.web.Permissions
 import ru.yarsu.web.currentUserLens
-import ru.yarsu.web.permissionsLens
 import java.math.BigDecimal
 import java.util.UUID
 import kotlin.system.measureTimeMillis
@@ -193,7 +191,6 @@ class RequestScope(
     val req: Request,
     val storage: EquipmentStorage,
     val user: User? = null,
-    val permissions: Permissions = Permissions.Guest,
 ) {
     fun pageParams(defaultPage: Int = 1): PageParams =
         PageParams(page = pageQueryLens(req), recordsPerPage = getValidatedRecordsPerPage(req))
@@ -305,14 +302,7 @@ fun restful(
                 } catch (e: Exception) {
                     null
                 }
-            val permissions =
-                try {
-                    permissionsLens(req)
-                } catch (e: Exception) {
-                    Permissions.Guest
-                }
-
-            val scope = RequestScope(req, storage, user, permissions)
+            val scope = RequestScope(req, storage, user)
             toResponse(scope.block())
         } catch (e: LensFailure) {
             Response(Status.BAD_REQUEST)

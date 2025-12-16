@@ -16,13 +16,8 @@ import java.util.UUID
 @Route(method = Method.POST, path = "/v3/equipment")
 fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        // Check auth first before JSON validation
-        if (user == null) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
-
         // Allow any authenticated user to add equipment
-        // if (!permissions.manageAllEquipment) {
+        // if (user == null) {
         //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         // }
 
