@@ -15,31 +15,45 @@ import java.util.UUID
 fun postUserHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
         val data =
-            validateJson {
-                fun <T> requireOrThrow(
-                    value: T?,
-                    fieldName: String,
-                ): T =
-                    value ?: throw ValidationException(
-                        Status.BAD_REQUEST,
-                        mapOf(fieldName to mapOf("Error" to "Поле обязательно")),
-                    )
+            try {
+                validateJson {
+                    object {
+                        val Name = optionalTextAllowEmpty("Name") ?: ""
+                        val Email = optionalTextAllowEmpty("Email") ?: ""
+                        val Position = optionalTextAllowEmpty("Position") ?: ""
 
-                object {
-                    val Name = requireTextAllowEmpty("Name") ?: ""
-                    val Email = requireTextAllowEmpty("Email") ?: ""
-                    val Position = requireTextAllowEmpty("Position") ?: ""
-
-                    // Новое поле Role
-                    val roleRaw = requireOrThrow(requireText("Role"), "Role")
-                    val Role =
-                        if (roleRaw in listOf("User", "Admin", "Manager")) {
-                            roleRaw
-                        } else {
-                            throw ValidationException(Status.BAD_REQUEST, mapOf("Role" to mapOf("Error" to "Invalid role")))
-                        }
+                        // Новое поле Role
+                        val roleRaw = optionalTextAllowEmpty("Role") ?: ""
+                        val Role =
+                            if (roleRaw.isEmpty() || roleRaw in listOf("User", "Admin", "Manager")) {
+                                roleRaw.ifEmpty { "User" } // default to User if empty
+                            } else {
+                                roleRaw // invalid, but we will check later
+                            }
+                    }
                 }
+            } catch (e: ValidationException) {
+                return@restful ok(e.body)
             }
+
+        // Check for errors
+        val errors = mutableMapOf<String, Any>()
+        if (data.Name.isBlank()) {
+            errors["Name"] = mapOf("Error" to "Поле обязательно")
+        }
+        if (data.Email.isBlank()) {
+            errors["Email"] = mapOf("Error" to "Поле обязательно")
+        }
+        if (data.Position.isBlank()) {
+            errors["Position"] = mapOf("Error" to "Поле обязательно")
+        }
+        if (data.Role !in listOf("User", "Admin", "Manager")) {
+            errors["Role"] = mapOf("Error" to "Invalid role")
+        }
+
+        if (errors.isNotEmpty()) {
+            return@restful ok(errors)
+        }
 
         if (!permissions.manageUsers) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))

@@ -31,5 +31,5 @@ fun deleteEquipmentHandler(storage: EquipmentStorage): HttpHandler =
         }
 
         storage.removeEquipment(id)
-        ok(mapOf("Id" to id.toString()))
+        ok(mapOf("LogId" to id.toString()))
     }

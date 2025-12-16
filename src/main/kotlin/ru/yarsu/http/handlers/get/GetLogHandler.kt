@@ -18,9 +18,10 @@ fun getLogHandler(storage: EquipmentStorage): HttpHandler =
         val params = pageParams()
         val filterEqId = equipmentIdQuery(req)
 
-        if (!permissions.manageAllEquipment) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+        // Allow any authenticated user to get logs
+        // if (!permissions.manageAllEquipment) {
+        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        // }
 
         val logs =
             if (filterEqId != null) {
@@ -29,7 +30,7 @@ fun getLogHandler(storage: EquipmentStorage): HttpHandler =
                 storage.getAllLogs()
             }
 
-        val sorted = logs.sortedWith(compareBy<ru.yarsu.Log> { it.LogDateTime }.thenByDescending { it.Id })
+        val sorted = logs.sortedWith(compareByDescending<ru.yarsu.Log> { it.LogDateTime }.thenBy { it.Id })
 
         ok(paginate(sorted, params))
     }

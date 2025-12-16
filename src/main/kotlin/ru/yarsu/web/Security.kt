@@ -14,7 +14,7 @@ data class Permissions(
 
         val User = Permissions(manageOwnEquipment = true)
 
-        val Admin = Permissions(manageAllEquipment = true, manageOwnEquipment = true, manageUsers = true)
+        val Admin = Permissions(manageAllEquipment = true, manageOwnEquipment = true, manageUsers = false)
 
         val Manager = Permissions(manageUsers = true, manageOwnEquipment = true)
     }

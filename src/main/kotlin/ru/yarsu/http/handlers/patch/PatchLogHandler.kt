@@ -16,7 +16,7 @@ fun patchLogHandler(storage: EquipmentStorage): HttpHandler =
         val id = logIdPathLens(req)
         val existing =
             storage.getLog(id)
-                ?: return@restful notFound(mapOf("Error" to "Log not found", "LogId" to id.toString()))
+                ?: return@restful notFound(mapOf("LogId" to id.toString()))
 
         validateJson {
             // В PATCH поля опциональны

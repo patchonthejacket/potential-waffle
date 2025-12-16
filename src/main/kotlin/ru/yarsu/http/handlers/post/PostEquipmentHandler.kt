@@ -21,9 +21,10 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
-        if (!permissions.manageAllEquipment) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+        // Allow any authenticated user to add equipment
+        // if (!permissions.manageAllEquipment) {
+        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        // }
 
         val data =
             validateJson {
@@ -50,6 +51,40 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                 }
             }
 
+        // Проверяем обязательные поля после валидации
+        val errors = mutableMapOf<String, Any>()
+
+        // Equipment can be empty
+        // if (data.Equipment.isNullOrBlank()) {
+        //     errors["Equipment"] = mapOf("Error" to "Отсутствует поле")
+        // }
+
+        if (data.rawCat.isNullOrBlank()) {
+            errors["Category"] = mapOf("Error" to "Отсутствует поле")
+        } else if (data.Category == null) {
+            errors["Category"] = mapOf("Value" to data.rawCat, "Error" to "Неверная категория")
+        }
+
+        if (data.GuaranteeDate == null) {
+            errors["GuaranteeDate"] = mapOf("Error" to "Отсутствует поле")
+        }
+
+        if (data.Price == null) {
+            errors["Price"] = mapOf("Error" to "Отсутствует поле")
+        }
+
+        if (data.Location.isBlank()) {
+            // Location может быть пустым - это OK
+        }
+
+        if (data.Operation.isNullOrBlank()) {
+            errors["Operation"] = mapOf("Error" to "Отсутствует поле")
+        }
+
+        if (errors.isNotEmpty()) {
+            throw ValidationException(Status.BAD_REQUEST, errors)
+        }
+
         val currentUser = user ?: throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Auth required"))
 
         val newId = UUID.randomUUID()
@@ -57,10 +92,10 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
             Equipment(
                 Id = newId,
                 Equipment = data.Equipment,
-                Category = data.Category ?: "Другое", // Default category if not provided
-                GuaranteeDate = data.GuaranteeDate ?: "", // Default empty string if not provided
+                Category = data.Category ?: "Другое",
+                GuaranteeDate = data.GuaranteeDate ?: "",
                 IsUsed = data.User != null,
-                Price = data.Price ?: BigDecimal.ZERO, // Default price if not provided
+                Price = data.Price ?: BigDecimal.ZERO,
                 Location = data.Location,
                 ResponsiblePerson = currentUser.Id,
                 User = data.User,
@@ -69,7 +104,7 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
         storage.addEquipment(newEquipment)
 
         // Only add log if Operation is provided
-        if (data.Operation != null) {
+        if (!data.Operation.isNullOrBlank()) {
             val logId = UUID.randomUUID()
             storage.addLog(
                 Log(

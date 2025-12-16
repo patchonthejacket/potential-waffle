@@ -26,19 +26,20 @@ fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
             storage.getEquipment(id)
                 ?: return@restful notFound(mapOf("Error" to "Оборудование не найдено"))
 
-        if (!permissions.manageAllEquipment && existing.ResponsiblePerson != user?.Id) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+        // Allow any authenticated user to edit equipment
+        // if (!permissions.manageAllEquipment && existing.ResponsiblePerson != user?.Id) {
+        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        // }
 
         val data =
             validateJson {
-                val equipmentName = optionalTextAllowEmpty("Equipment")
-                val categoryRaw = optionalText("Category")
+                val equipmentName = requireTextAllowEmpty("Equipment")
+                val categoryRaw = requireText("Category")
                 val category = categoryRaw?.let { validateCategory(it) }
                 val guaranteeDate = optionalDate("GuaranteeDate")
                 val priceRaw = optionalNumber("Price")
                 val price = priceRaw?.let { validatePrice(it) }
-                val location = optionalTextAllowEmpty("Location")
+                val location = requireTextAllowEmpty("Location")
 
                 val responsiblePersonStr = optionalTextAllowEmpty("ResponsiblePerson")
                 val responsiblePersonUuid =

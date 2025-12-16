@@ -22,6 +22,10 @@ fun statisticsHandler(storage: EquipmentStorage): HttpHandler =
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
+        if (!permissions.manageAllEquipment) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         when (byType) {
             "category" -> {
                 val stats =
