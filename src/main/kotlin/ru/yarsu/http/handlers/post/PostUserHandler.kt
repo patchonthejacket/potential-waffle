@@ -15,67 +15,39 @@ import java.util.UUID
 @Route(method = Method.POST, path = "/v3/users")
 fun postUserHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        if (user?.Role != UserRole.Manager) {
+        // Проверка авторизации ДО парсинга JSON
+        if (user == null || user.Role != UserRole.Manager) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
         val data =
-            try {
-                validateJson {
-                    object {
-                        val Name = optionalTextAllowEmpty("Name") ?: ""
-                        val Email = optionalTextAllowEmpty("Email") ?: ""
-                        val Position = optionalTextAllowEmpty("Position") ?: ""
-
-                        // Новое поле Role
-                        val roleRaw = optionalTextAllowEmpty("Role") ?: ""
-                        val Role = roleRaw
-                    }
+            validateJson {
+                object {
+                    val Name = requireText("Name")
+                    val Email = requireText("Email")
+                    val Position = requireText("Position")
+                    val roleRaw = requireText("Role")
+                    val Role =
+                        if (roleRaw in listOf("User", "Admin", "Manager")) {
+                            roleRaw
+                        } else {
+                            throw ValidationException(
+                                Status.BAD_REQUEST,
+                                mapOf("Role" to mapOf("Value" to roleRaw, "Error" to "Ожидается одно из значений: User, Admin, Manager")),
+                            )
+                        }
                 }
-            } catch (e: ValidationException) {
-                return@restful ok(e.body)
             }
-
-        // Check for errors
-        val errors = mutableMapOf<String, Any>()
-        if (data.Name.isBlank()) {
-            errors["Name"] = mapOf("Error" to "Поле обязательно")
-        }
-        if (data.Email.isBlank()) {
-            errors["Email"] = mapOf("Error" to "Поле обязательно")
-        }
-        if (data.Position.isBlank()) {
-            errors["Position"] = mapOf("Error" to "Поле обязательно")
-        }
-        val roleEnum =
-            try {
-                enumValueOf<UserRole>(data.Role)
-            } catch (e: IllegalArgumentException) {
-                null
-            }
-        if (roleEnum == null) {
-            errors["Role"] = mapOf("Error" to "Invalid role")
-        }
-
-        if (errors.isNotEmpty()) {
-            return@restful ok(errors)
-        }
-
-        if (user?.Role != UserRole.Manager) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
-
-        // Валидация Email (простая) - убрана, так как пустой разрешен
 
         val userId = UUID.randomUUID()
         val newUser =
             User(
                 Id = userId,
-                Name = data.Name,
+                Name = data.Name!!,
                 RegistrationDateTime = LocalDateTime.now(),
-                Email = data.Email,
-                Position = data.Position,
-                Role = roleEnum ?: UserRole.User,
+                Email = data.Email!!,
+                Position = data.Position!!,
+                Role = enumValueOf<UserRole>(data.Role!!),
             )
 
         storage.addUser(newUser)

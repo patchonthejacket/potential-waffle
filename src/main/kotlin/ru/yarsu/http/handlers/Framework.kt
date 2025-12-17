@@ -67,7 +67,25 @@ class JsonValidationContext(
 
     fun requireNumber(field: String) = validate(requireNumberField(root, field))
 
+    fun requireNumberAllowZero(field: String) =
+        validate(
+            ru.yarsu.http.handlers
+                .requireNumberAllowZero(root, field),
+        )
+
     fun requireDate(field: String) = validate(requireDateField(root, field))
+
+    fun requireCategoryAllowDefault(field: String) =
+        validate(
+            ru.yarsu.http.handlers
+                .requireCategoryAllowDefault(root, field),
+        )
+
+    fun requireDateFieldAllowEmpty(field: String) =
+        validate(
+            ru.yarsu.http.handlers
+                .requireDateFieldAllowEmpty(root, field),
+        )
 
     fun optionalText(field: String) = validate(validateOptionalTextField(root, field))
 

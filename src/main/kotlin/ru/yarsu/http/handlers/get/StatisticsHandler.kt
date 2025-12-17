@@ -4,12 +4,14 @@ import org.http4k.core.HttpHandler
 import org.http4k.core.Method
 import org.http4k.core.Request
 import org.http4k.core.Status
-import org.http4k.core.Status.Companion.OK as ok
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.UserRole
 import ru.yarsu.http.Route
+import ru.yarsu.http.handlers.CategoryStat
+import ru.yarsu.http.handlers.PersonStat
 import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
+import org.http4k.core.Status.Companion.OK as ok
 
 @Route(method = Method.GET, path = "/v3/equipment/statistics")
 fun statisticsHandler(storage: EquipmentStorage): HttpHandler =

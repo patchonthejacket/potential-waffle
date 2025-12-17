@@ -6,9 +6,12 @@ import com.auth0.jwt.exceptions.JWTVerificationException
 import org.http4k.core.Filter
 import org.http4k.core.HttpHandler
 import org.http4k.core.Request
+import org.http4k.core.Response
+import org.http4k.core.Status
 import org.http4k.core.with
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.UserRole
+import ru.yarsu.http.handlers.JsonMapper
 import java.util.UUID
 
 fun authFilter(
@@ -20,23 +23,34 @@ fun authFilter(
             val authHeader = req.header("Authorization")
             var requestWithAuth = req
 
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                val token = authHeader.removePrefix("Bearer ").trim()
+            val response: Response =
+                if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                    val token = authHeader.removePrefix("Bearer ").trim()
+                    val userId = verifyJwtAndGetUserId(token, secret)
 
-                val userId = verifyJwtAndGetUserId(token, secret)
-
-                if (userId != null) {
-                    val user = storage.getUser(userId)
-
-                    if (user != null) {
-                        requestWithAuth =
-                            requestWithAuth.with(
-                                currentUserLens of user,
-                            )
+                    if (userId != null) {
+                        val user = storage.getUser(userId)
+                        if (user != null) {
+                            requestWithAuth = requestWithAuth.with(currentUserLens of user)
+                            next(requestWithAuth)
+                        } else {
+                            // Token is valid but user not found -> treat as unauthorized
+                            Response(Status.UNAUTHORIZED)
+                                .header("Content-Type", "application/json; charset=utf-8")
+                                .body(JsonMapper.toJson(mapOf("Error" to "Отказано в авторизации")))
+                        }
+                    } else {
+                        // Authorization header present but token invalid -> return 401
+                        Response(Status.UNAUTHORIZED)
+                            .header("Content-Type", "application/json; charset=utf-8")
+                            .body(JsonMapper.toJson(mapOf("Error" to "Отказано в авторизации")))
                     }
+                } else {
+                    // No Authorization header, just pass through
+                    next(requestWithAuth)
                 }
-            }
-            next(requestWithAuth)
+
+            response
         }
     }
 

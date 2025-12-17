@@ -353,6 +353,85 @@ fun validatePrice(
         Result.failure(FieldError("Price", root.get("Price")))
     }
 
+fun requireNumberAllowZero(
+    root: JsonNode,
+    fieldName: String,
+): Result<BigDecimal> {
+    val node = root.get(fieldName)
+    return when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
+        !node.isNumber -> Result.failure(FieldError(fieldName, node))
+        else -> {
+            try {
+                val value = BigDecimal(node.asText())
+                if (value >= BigDecimal.ZERO) {
+                    Result.success(value)
+                } else {
+                    Result.failure(FieldError(fieldName, node))
+                }
+            } catch (e: Exception) {
+                Result.failure(FieldError(fieldName, node))
+            }
+        }
+    }
+}
+
+fun requireTextAllowEmpty(
+    root: JsonNode,
+    fieldName: String,
+): Result<String> {
+    val node = root.get(fieldName)
+    return when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+        else -> Result.success(node.asText())
+    }
+}
+
+fun requireCategoryAllowDefault(
+    root: JsonNode,
+    fieldName: String,
+): Result<String> {
+    val node = root.get(fieldName)
+    return when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+        else -> {
+            val category = node.asText()
+            val allowedCategories = setOf("ПК", "Монитор", "Принтер", "Телефон", "Другое")
+            if (category in allowedCategories) {
+                Result.success(category)
+            } else {
+                Result.failure(FieldError(fieldName, node))
+            }
+        }
+    }
+}
+
+fun requireDateFieldAllowEmpty(
+    root: JsonNode,
+    fieldName: String,
+): Result<String> {
+    val node = root.get(fieldName)
+    return when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+        else -> {
+            val text = node.asText()
+            if (text.isBlank()) {
+                Result.success(text)
+            } else {
+                try {
+                    LocalDate.parse(text)
+                    Result.success(text)
+                } catch (e: Exception) {
+                    Result.failure(FieldError(fieldName, node))
+                }
+            }
+        }
+    }
+}
+
 fun validateUserExists(
     userId: UUID,
     storage: ru.yarsu.EquipmentStorage,

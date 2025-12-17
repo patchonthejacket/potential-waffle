@@ -39,18 +39,12 @@ fun putLogHandler(storage: EquipmentStorage): HttpHandler =
                 throw ValidationException(Status.BAD_REQUEST, errors)
             }
 
-        if (user == null) {
+        if (user == null || user?.Role != ru.yarsu.UserRole.Admin) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
         val existing =
-            storage.getLog(id) ?: return@restful notFound(mapOf("Error" to "Запись в журнале не найдена", "LogId" to id.toString()))
-
-        // Проверка, что запись принадлежит текущему пользователю
-        val currentUserId = user?.Id?.toString()
-        if (existing.ResponsiblePerson != currentUserId) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+            storage.getLog(id) ?: return@restful notFound(mapOf("LogId" to id.toString()))
 
         val operation = operationFormField(form)
         val text = textFormField(form)

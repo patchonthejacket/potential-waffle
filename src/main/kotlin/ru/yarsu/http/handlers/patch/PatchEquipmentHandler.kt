@@ -5,6 +5,7 @@ import org.http4k.core.Method
 import org.http4k.core.Status
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.Log
+import ru.yarsu.UserRole
 import ru.yarsu.http.Route
 import ru.yarsu.http.handlers.ApiResult
 import ru.yarsu.http.handlers.ValidationException
@@ -16,54 +17,89 @@ import java.util.UUID
 @Route(method = Method.PATCH, path = "/v3/equipment/{equipment-id}")
 fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        // Allow any authenticated user to edit equipment
-        // if (user == null) {
-        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        // }
+        // Требуем авторизацию: любой авторизованный пользователь
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
 
         val id = equipmentIdPathLens(req)
 
         val existing =
             storage.getEquipment(id)
-                ?: return@restful notFound(mapOf("Error" to "Оборудование не найдено"))
+                ?: return@restful notFound(mapOf("EquipmentId" to id.toString(), "Error" to "Элемент техники не найден"))
 
-        // Allow any authenticated user to edit equipment
-        // if (!permissions.manageAllEquipment && existing.ResponsiblePerson != user?.Id) {
-        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        // }
+        // Проверка прав на объект как у друга
+        when (user.Role) {
+            UserRole.User -> {
+                if (existing.User != user.Id) {
+                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+                }
+            }
+            UserRole.Admin -> {
+                if (existing.ResponsiblePerson != user.Id) {
+                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+                }
+            }
+            else -> throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
 
         val data =
             validateJson {
-                val equipmentName = requireTextAllowEmpty("Equipment")
-                val categoryRaw = requireText("Category")
-                val category = categoryRaw?.let { validateCategory(it) }
-                val guaranteeDate = optionalDate("GuaranteeDate")
-                val priceRaw = optionalNumber("Price")
-                val price = priceRaw?.let { validatePrice(it) }
-                val location = requireTextAllowEmpty("Location")
-
-                val responsiblePersonStr = optionalTextAllowEmpty("ResponsiblePerson")
-                val responsiblePersonUuid =
-                    if (responsiblePersonStr != null) {
-                        validateResponsiblePersonUuid("ResponsiblePerson", responsiblePersonStr)
-                    } else {
-                        null
+                // Ограничение полей для User
+                if (user.Role == UserRole.User) {
+                    val allowed = setOf("Location", "Operation", "Text")
+                    root.fieldNames().asSequence().firstOrNull { it !in allowed }?.let {
+                        throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
                     }
+                }
+
+                // Проверка обязательных
+                val required =
+                    if (user.Role ==
+                        UserRole.User
+                    ) {
+                        setOf("Location", "Operation", "Text")
+                    } else {
+                        setOf("Equipment", "Location", "Operation", "Text")
+                    }
+                required.forEach { field ->
+                    when {
+                        !root.has(field) ->
+                            validate(
+                                Result.failure<String>(
+                                    ru.yarsu.http.handlers
+                                        .FieldError(field, null),
+                                ),
+                            )
+                        root
+                            .get(
+                                field,
+                            ).isNull ->
+                            validate(
+                                Result.failure<String>(
+                                    ru.yarsu.http.handlers
+                                        .FieldError(field, root.get(field)),
+                                ),
+                            )
+                    }
+                }
+
+                // Поля
+                val equipmentName = optionalTextAllowEmpty("Equipment")
+                val category = optionalCategory("Category")
+                val guaranteeDate = optionalDate("GuaranteeDate")
+                val price = optionalNumber("Price")?.also { validatePrice(it) }
+                val location = optionalTextAllowEmpty("Location")
+                val responsiblePersonUuid =
+                    optionalText(
+                        "ResponsiblePerson",
+                    )?.let { validateResponsiblePersonUuid("ResponsiblePerson", it) }
 
                 val userField = validateUserField()
-                val userUuid =
-                    if (userField.fieldProvided && !userField.explicitNull && userField.value != null) {
-                        validateUserUuid("User", userField.value)
-                    } else {
-                        null
-                    }
+                val userUuid = if (userField.fieldProvided && userField.value != null) validateUserUuid("User", userField.value) else null
 
                 val operation = requireText("Operation")
-                val text = requireTextAllowEmpty("Text")
-
-                if (hasErrors()) {
-                    throw ValidationException(Status.BAD_REQUEST, collectErrors())
-                }
+                val text = optionalTextAllowEmpty("Text")
 
                 object {
                     val equipmentName = equipmentName
@@ -73,6 +109,7 @@ fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                     val location = location
                     val responsiblePersonUuid = responsiblePersonUuid
                     val userUuid = userUuid
+                    val userProvided = userField.fieldProvided
                     val operation = operation
                     val text = text
                 }
@@ -82,11 +119,7 @@ fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
         var changed = false
 
         storage.updateEquipment(id) { eq ->
-            val newUserUuid: UUID? =
-                when {
-                    data.userUuid != null -> data.userUuid
-                    else -> eq.User
-                }
+            val newUserUuid: UUID? = if (data.userProvided) data.userUuid else eq.User
 
             val newRpUuid: UUID = data.responsiblePersonUuid ?: eq.ResponsiblePerson
 
@@ -115,14 +148,14 @@ fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                 Log(
                     Id = logId,
                     Equipment = id,
-                    ResponsiblePerson = user?.Id?.toString() ?: "Unknown",
-                    Operation = data.operation.toString(),
-                    Text = data.text.toString(),
+                    ResponsiblePerson = updatedResult.ResponsiblePerson.toString(),
+                    Operation = data.operation ?: "",
+                    Text = data.text ?: "",
                     LogDateTime = LocalDateTime.now(),
                 ),
             )
-            // For successful edit, return 200 with Id
-            ok(mapOf("Id" to id.toString()))
+            // При изменениях возвращаем 201 только с LogId (как у друга)
+            created(mapOf("LogId" to logId.toString()))
         } else {
             ApiResult.NoContent
         }

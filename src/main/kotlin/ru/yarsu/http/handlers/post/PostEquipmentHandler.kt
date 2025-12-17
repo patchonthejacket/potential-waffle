@@ -16,22 +16,18 @@ import java.util.UUID
 @Route(method = Method.POST, path = "/v3/equipment")
 fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        // Allow any authenticated user to add equipment
-        // if (user == null) {
-        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        // }
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
 
         val data =
             validateJson {
                 object {
-                    val Equipment = optionalTextAllowEmpty("Equipment") ?: ""
-                    val rawCat = optionalText("Category")
-                    val Category = rawCat?.let { validateCategory(it) }
-                    val GuaranteeDate = optionalDate("GuaranteeDate")
-                    val Price = optionalNumber("Price")
-                    val Location = optionalTextAllowEmpty("Location") ?: ""
-
-                    // User (UUID?), если передан
+                    val Equipment = requireTextAllowEmpty("Equipment")
+                    val Category = requireCategoryAllowDefault("Category")
+                    val GuaranteeDate = requireDateFieldAllowEmpty("GuaranteeDate")
+                    val Price = requireNumberAllowZero("Price")
+                    val Location = requireTextAllowEmpty("Location")
                     val userText = optionalTextAllowEmpty("User")
                     val User =
                         if (!userText.isNullOrBlank()) {
@@ -40,78 +36,43 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                             null
                         }
 
-                    // Поля для журнала (Operation, Text) при создании - делаем опциональными
-                    val Operation = optionalText("Operation")
+                    val Operation = requireText("Operation")
                     val Text = optionalTextAllowEmpty("Text") ?: ""
                 }
             }
 
-        // Проверяем обязательные поля после валидации
-        val errors = mutableMapOf<String, Any>()
-
-        // Equipment can be empty
-        // if (data.Equipment.isNullOrBlank()) {
-        //     errors["Equipment"] = mapOf("Error" to "Отсутствует поле")
-        // }
-
-        if (data.rawCat.isNullOrBlank()) {
-            errors["Category"] = mapOf("Error" to "Отсутствует поле")
-        } else if (data.Category == null) {
-            errors["Category"] = mapOf("Value" to data.rawCat, "Error" to "Неверная категория")
-        }
-
-        if (data.GuaranteeDate == null) {
-            errors["GuaranteeDate"] = mapOf("Error" to "Отсутствует поле")
-        }
-
-        if (data.Price == null) {
-            errors["Price"] = mapOf("Error" to "Отсутствует поле")
-        }
-
-        if (data.Location.isBlank()) {
-            // Location может быть пустым - это OK
-        }
-
-        if (data.Operation.isNullOrBlank()) {
-            errors["Operation"] = mapOf("Error" to "Отсутствует поле")
-        }
-
-        if (errors.isNotEmpty()) {
-            throw ValidationException(Status.BAD_REQUEST, errors)
-        }
-
-        val currentUser = user ?: throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Auth required"))
+        val currentUser = user
 
         val newId = UUID.randomUUID()
         val newEquipment =
             Equipment(
                 Id = newId,
-                Equipment = data.Equipment,
-                Category = data.Category ?: "Другое",
-                GuaranteeDate = data.GuaranteeDate ?: "",
+                Equipment = data.Equipment!!,
+                Category = data.Category!!,
+                GuaranteeDate = data.GuaranteeDate!!,
                 IsUsed = data.User != null,
-                Price = data.Price ?: BigDecimal.ZERO,
-                Location = data.Location,
+                Price = data.Price!!,
+                Location = data.Location!!,
                 ResponsiblePerson = currentUser.Id,
                 User = data.User,
             )
 
         storage.addEquipment(newEquipment)
 
-        // Only add log if Operation is provided
-        if (!data.Operation.isNullOrBlank()) {
-            val logId = UUID.randomUUID()
-            storage.addLog(
-                Log(
-                    Id = logId,
-                    Equipment = newId,
-                    ResponsiblePerson = currentUser.Id.toString(),
-                    Operation = data.Operation,
-                    Text = data.Text,
-                    LogDateTime = LocalDateTime.now(),
-                ),
-            )
-        }
+        val logId = UUID.randomUUID()
+        storage.addLog(
+            Log(
+                Id = logId,
+                Equipment = newId,
+                ResponsiblePerson = currentUser.Id.toString(),
+                Operation = data.Operation ?: "",
+                Text = data.Text,
+                LogDateTime = LocalDateTime.now(),
+            ),
+        )
 
-        created(mapOf("Id" to newId.toString()))
+        created(
+            ru.yarsu.http.handlers
+                .EquipmentResponse(EquipmentId = newId.toString(), LogId = logId.toString()),
+        )
     }

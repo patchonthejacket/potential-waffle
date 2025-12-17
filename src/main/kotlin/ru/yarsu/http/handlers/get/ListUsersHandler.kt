@@ -13,12 +13,24 @@ import ru.yarsu.http.handlers.restful
 @Route(method = Method.GET, path = "/v3/users")
 fun listUsersHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        val params = pageParams()
-
         if (user?.Role != UserRole.Manager) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
-        val sorted = storage.getAllUsers().sortedWith(compareByDescending<User> { it.Name }.thenBy { it.Id })
+        val sorted =
+            storage
+                .getAllUsers()
+                .sortedWith(compareBy<User> { it.Name.lowercase() }.thenBy { it.Id })
 
-        ok(paginate(sorted, params))
+        val result =
+            sorted.map { u ->
+                mapOf(
+                    "Id" to u.Id.toString(),
+                    "Name" to u.Name,
+                    "RegistrationDateTime" to u.RegistrationDateTime,
+                    "Email" to u.Email,
+                    "Position" to u.Position,
+                )
+            }
+
+        ok(result)
     }
