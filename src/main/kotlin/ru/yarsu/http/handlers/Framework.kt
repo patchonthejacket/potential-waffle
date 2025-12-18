@@ -48,6 +48,13 @@ class JsonValidationContext(
 ) {
     private val validationResults = mutableListOf<Result<*>>()
 
+    private fun node(field: String): JsonNode? {
+        val direct = root.get(field)
+        if (direct != null) return direct
+        val lowerCamel = field.replaceFirstChar { it.lowercase() }
+        return root.get(lowerCamel) ?: root.get(field.lowercase())
+    }
+
     fun <T> validate(result: Result<T>): T? {
         validationResults.add(result)
         return result.getOrNull()
@@ -61,62 +68,62 @@ class JsonValidationContext(
 
     fun hasErrors(): Boolean = collectErrors().isNotEmpty()
 
-    fun requireText(field: String) = validate(requireTextField(root, field))
+    fun requireText(field: String) = validate(requireTextField(node(field), field))
 
-    fun requireTextAllowEmpty(field: String) = validate(requireTextFieldAllowEmpty(root, field))
+    fun requireTextAllowEmpty(field: String) = validate(requireTextFieldAllowEmpty(node(field), field))
 
-    fun requireNumber(field: String) = validate(requireNumberField(root, field))
+    fun requireNumber(field: String) = validate(requireNumberField(node(field), field))
 
     fun requireNumberAllowZero(field: String) =
         validate(
             ru.yarsu.http.handlers
-                .requireNumberAllowZero(root, field),
+                .requireNumberAllowZero(node(field), field),
         )
 
-    fun requireDate(field: String) = validate(requireDateField(root, field))
+    fun requireDate(field: String) = validate(requireDateField(node(field), field))
 
     fun requireCategoryAllowDefault(field: String) =
         validate(
             ru.yarsu.http.handlers
-                .requireCategoryAllowDefault(root, field),
+                .requireCategoryAllowDefault(node(field), field),
         )
 
     fun requireDateFieldAllowEmpty(field: String) =
         validate(
             ru.yarsu.http.handlers
-                .requireDateFieldAllowEmpty(root, field),
+                .requireDateFieldAllowEmpty(node(field), field),
         )
 
-    fun optionalText(field: String) = validate(validateOptionalTextField(root, field))
+    fun optionalText(field: String) = validate(validateOptionalTextField(node(field), field))
 
-    fun optionalTextAllowEmpty(field: String) = validate(validateOptionalTextFieldAllowEmpty(root, field))
+    fun optionalTextAllowEmpty(field: String) = validate(validateOptionalTextFieldAllowEmpty(node(field), field))
 
     fun optionalNumber(field: String): BigDecimal? {
-        val node = root.get(field)
+        val node = node(field)
         return when {
             node == null -> null
             node.isNull -> {
                 validate(Result.failure<BigDecimal?>(FieldError(field, node)))
                 null
             }
-            else -> validate(validateNumberField(root, field, required = false))
+            else -> validate(validateNumberField(node, field, required = false))
         }
     }
 
     fun optionalDate(field: String): String? {
-        val node = root.get(field)
+        val node = node(field)
         return when {
             node == null -> null
             node.isNull -> {
                 validate(Result.failure<String?>(FieldError(field, node)))
                 null
             }
-            else -> validate(validateDateField(root, field, required = false))
+            else -> validate(validateDateField(node, field, required = false))
         }
     }
 
     fun optionalCategory(field: String): String? {
-        val node = root.get(field)
+        val node = node(field)
         return when {
             node == null -> null
             node.isNull -> {
@@ -124,7 +131,7 @@ class JsonValidationContext(
                 null
             }
             else -> {
-                val text = validate(validateTextField(root, field, required = false))
+                val text = validate(validateTextField(node, field, required = false))
                 text?.let { validateCategory(it) }
             }
         }

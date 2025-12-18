@@ -14,7 +14,10 @@ fun personLogsHandler(storage: EquipmentStorage): HttpHandler =
             else -> {
                 val allLogs = storage.getAllLogs()
                 val params = pageParams()
-                val sortedPersLogs = allLogs.filter { it.ResponsiblePerson == nameParameter }.sortedByDescending { it.LogDateTime }
+                val sortedPersLogs =
+                    allLogs
+                        .filter { it.ResponsiblePerson == nameParameter }
+                        .sortedWith(compareByDescending<ru.yarsu.Log> { it.LogDateTime }.thenBy { it.Id })
                 val limit = req.query("limit")?.toIntOrNull() ?: 10
                 val result =
                     sortedPersLogs.take(limit).map {

@@ -16,6 +16,10 @@ import ru.yarsu.http.handlers.textFormField
 @Route(method = Method.PUT, path = "/v3/log/{log-id}")
 fun putLogHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null || user?.Role != ru.yarsu.UserRole.Admin) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val id = logIdPathLens(req)
 
         val form =
@@ -39,12 +43,16 @@ fun putLogHandler(storage: EquipmentStorage): HttpHandler =
                 throw ValidationException(Status.BAD_REQUEST, errors)
             }
 
-        if (user == null || user?.Role != ru.yarsu.UserRole.Admin) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+        // auth checked before parsing
 
         val existing =
             storage.getLog(id) ?: return@restful notFound(mapOf("LogId" to id.toString()))
+
+        // Check that the log is under the admin's responsibility
+        // По спецификации: "Разрешено только для записи под ответственностью пользователя"
+        if (existing.ResponsiblePerson != user?.Id.toString()) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
 
         val operation = operationFormField(form)
         val text = textFormField(form)

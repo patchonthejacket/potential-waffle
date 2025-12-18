@@ -11,6 +11,11 @@ import ru.yarsu.http.handlers.restful
 @Route(method = Method.GET, path = "/v1/equipment/search")
 fun searchByCategoryHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        // Public (lab #1): if Authorization header present but invalid -> 401
+        val hasAuthHeader = req.header("Authorization") != null
+        if (hasAuthHeader && user == null) {
+            return@restful json(org.http4k.core.Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
         when (val categoryParameter = req.query("category")) {
             null, "" -> json(org.http4k.core.Status.BAD_REQUEST, mapOf("error" to "category is required"))
             else -> {

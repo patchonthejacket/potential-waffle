@@ -14,28 +14,27 @@ import java.time.LocalDateTime
 @Route(method = Method.GET, path = "/v3/equipment/by-time")
 fun byTimeHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        if (user?.Role != UserRole.Admin) {
+        // Только Admin может получать список техники на замену
+        if (user == null || user.Role != UserRole.Admin) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
         val timeStr =
             req.query("time")
-                ?: throw ValidationException(Status.BAD_REQUEST, mapOf("Error" to "Missing required parameter"))
+                ?: throw ValidationException(
+                    Status.BAD_REQUEST,
+                    mapOf("Error" to "Некорректное значение параметра time: ожидается дата-время в формате ISO"),
+                )
 
         val targetDate =
             try {
-                // Парсим LocalDateTime, поддерживая формат с миллисекундами и без
-                val dateTime =
-                    if (timeStr.contains(".")) {
-                        // Формат с миллисекундами: 2024-01-01T00:00:00.000
-                        val parts = timeStr.split(".")
-                        LocalDateTime.parse(parts[0])
-                    } else {
-                        LocalDateTime.parse(timeStr)
-                    }
+                val dateTime = LocalDateTime.parse(timeStr)
                 dateTime.toLocalDate()
             } catch (e: Exception) {
-                throw ValidationException(Status.BAD_REQUEST, mapOf("Error" to "Некорректные значения параметров"))
+                throw ValidationException(
+                    Status.BAD_REQUEST,
+                    mapOf("Error" to "Некорректное значение параметра time: ожидается дата-время в формате ISO"),
+                )
             }
 
         val params = pageParams()
@@ -49,7 +48,7 @@ fun byTimeHandler(storage: EquipmentStorage): HttpHandler =
                     } catch (e: Exception) {
                         false
                     }
-                }.sortedWith(compareBy<ru.yarsu.Equipment> { it.Category.lowercase() }.thenBy { it.Id })
+                }.sortedWith(compareBy<ru.yarsu.Equipment> { it.Category }.thenBy { it.Id })
         val items =
             filtered.map {
                 ru.yarsu.http.handlers.EquipmentByTimeItem(

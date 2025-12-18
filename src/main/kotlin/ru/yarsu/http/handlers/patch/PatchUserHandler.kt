@@ -6,6 +6,7 @@ import org.http4k.core.Status
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.http.Route
 import ru.yarsu.http.handlers.ApiResult
+import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
 import ru.yarsu.http.handlers.userIdPathLens
 import java.util.UUID
@@ -13,6 +14,10 @@ import java.util.UUID
 @Route(method = Method.PATCH, path = "/v2/users/{user-id}")
 fun patchUserHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null || user?.Role != ru.yarsu.UserRole.Manager) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val id = userIdPathLens(req)
         val existing =
             storage.getUser(id)

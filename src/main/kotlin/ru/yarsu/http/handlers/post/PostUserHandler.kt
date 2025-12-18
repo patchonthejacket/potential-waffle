@@ -7,6 +7,7 @@ import ru.yarsu.EquipmentStorage
 import ru.yarsu.User
 import ru.yarsu.UserRole
 import ru.yarsu.http.Route
+import ru.yarsu.http.handlers.FieldError
 import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
 import java.time.LocalDateTime
@@ -23,19 +24,27 @@ fun postUserHandler(storage: EquipmentStorage): HttpHandler =
         val data =
             validateJson {
                 object {
-                    val Name = requireText("Name")
-                    val Email = requireText("Email")
-                    val Position = requireText("Position")
+                    val Name = requireTextAllowEmpty("Name")
+                    val Email = requireTextAllowEmpty("Email")
+                    val Position = requireTextAllowEmpty("Position")
                     val roleRaw = requireText("Role")
-                    val Role =
-                        if (roleRaw in listOf("User", "Admin", "Manager")) {
-                            roleRaw
-                        } else {
-                            throw ValidationException(
-                                Status.BAD_REQUEST,
-                                mapOf("Role" to mapOf("Value" to roleRaw, "Error" to "Ожидается одно из значений: User, Admin, Manager")),
+
+                    init {
+                        if (roleRaw != null && roleRaw !in listOf("User", "Admin", "Manager")) {
+                            // Добавляем бизнес-ошибку только если тип корректный, но значение вне допустимого набора
+                            validateBusiness(
+                                Result.failure<String>(
+                                    FieldError(
+                                        "Role",
+                                        root.get("Role"),
+                                        "Ожидается одно из значений: User, Admin, Manager",
+                                    ),
+                                ),
                             )
                         }
+                    }
+
+                    val Role = roleRaw
                 }
             }
 

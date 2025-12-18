@@ -12,6 +12,10 @@ import ru.yarsu.http.handlers.restful
 @Route(method = Method.GET, path = "/v3/equipment/unused")
 fun unusedEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val params = pageParams()
         val categoryParam = req.query("category")
 
@@ -33,9 +37,7 @@ fun unusedEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                 allUnused
             }
 
-        if (user == null) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+        // auth already checked
 
         val sorted = filtered.sortedWith(compareBy<ru.yarsu.Equipment> { it.Category }.thenBy { it.Id })
         val items =

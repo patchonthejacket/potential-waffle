@@ -9,17 +9,19 @@ import java.util.UUID
 class FieldError(
     val field: String,
     val node: JsonNode?,
+    val errorMessage: String = "Некорректное значение",
 ) : Exception()
 
 fun fieldErrorResponse(
     field: String,
     node: JsonNode?,
+    errorMessage: String = "Некорректное значение",
 ): Map<String, Any> =
     mapOf(
         field to
             mapOf(
                 "Value" to (node ?: JsonMapper.nullNode()),
-                "Error" to "Некорректное значение",
+                "Error" to errorMessage,
             ),
     )
 
@@ -44,204 +46,185 @@ class ValidationException(
 ) : Exception()
 
 fun requireTextField(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<String> {
-    val node = root.get(fieldName)
-    return when {
-        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+): Result<String> =
+    when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается строка"))
         else -> {
             val text = node.asText()
             if (text.isBlank()) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается непустая строка"))
             } else {
                 Result.success(text)
             }
         }
     }
-}
 
 fun requireTextFieldAllowEmpty(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<String> {
-    val node = root.get(fieldName)
-    return when {
-        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+): Result<String> =
+    when {
+        node == null -> Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
+        node.isNull -> Result.failure(FieldError(fieldName, node, "Поле обязательно"))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается строка"))
         else -> Result.success(node.asText())
     }
-}
 
 fun validateTextField(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
     required: Boolean = true,
-): Result<String?> {
-    val node = root.get(fieldName)
-    return when {
+): Result<String?> =
+    when {
         node == null || node.isNull -> {
             if (required) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
             } else {
                 Result.success(null)
             }
         }
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается строка"))
         else -> Result.success(node.asText())
     }
-}
 
 fun requireNumberField(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<BigDecimal> {
-    val node = root.get(fieldName)
-    return when {
-        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isNumber -> Result.failure(FieldError(fieldName, node))
+): Result<BigDecimal> =
+    when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число, но получен null"))
+        !node.isNumber -> Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число"))
         else -> {
             try {
                 Result.success(BigDecimal(node.asText()))
             } catch (e: Exception) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число"))
             }
         }
     }
-}
 
 fun validateNumberField(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
     required: Boolean = true,
-): Result<BigDecimal?> {
-    val node = root.get(fieldName)
-    return when {
+): Result<BigDecimal?> =
+    when {
         node == null || node.isNull -> {
             if (required) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число, но получен null"))
             } else {
                 Result.success(null)
             }
         }
-        !node.isNumber -> Result.failure(FieldError(fieldName, node))
+        !node.isNumber -> Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число"))
         else -> {
             try {
                 Result.success(BigDecimal(node.asText()))
             } catch (e: Exception) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число"))
             }
         }
     }
-}
 
 fun requireDateField(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<String> {
-    val node = root.get(fieldName)
-    return when {
-        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+): Result<String> =
+    when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается дата"))
         else -> {
             val text = node.asText()
             if (text.isBlank()) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается дата"))
             } else {
                 try {
                     LocalDate.parse(text)
                     Result.success(text)
                 } catch (e: Exception) {
-                    Result.failure(FieldError(fieldName, node))
+                    Result.failure(FieldError(fieldName, node, "Ожидается дата"))
                 }
             }
         }
     }
-}
 
 fun validateDateField(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
     required: Boolean = true,
-): Result<String?> {
-    val node = root.get(fieldName)
-    return when {
+): Result<String?> =
+    when {
         node == null || node.isNull -> {
             if (required) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
             } else {
                 Result.success(null)
             }
         }
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается дата"))
         else -> {
             val text = node.asText()
             if (text.isBlank()) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается дата"))
             } else {
                 try {
                     LocalDate.parse(text)
                     Result.success(text)
                 } catch (e: Exception) {
-                    Result.failure(FieldError(fieldName, node))
+                    Result.failure(FieldError(fieldName, node, "Ожидается дата"))
                 }
             }
         }
     }
-}
 
 fun validateUuidField(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
     required: Boolean = true,
-): Result<String?> {
-    val node = root.get(fieldName)
-    return when {
+): Result<String?> =
+    when {
         node == null || node.isNull -> {
             if (required) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
             } else {
                 Result.success(null)
             }
         }
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается корректный UUID или null"))
         else -> {
             val text = node.asText()
             try {
                 UUID.fromString(text)
                 Result.success(text)
             } catch (e: Exception) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается корректный UUID или null"))
             }
         }
     }
-}
 
 fun validateOptionalTextField(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<String?> {
-    val node = root.get(fieldName)
-    return when {
+): Result<String?> =
+    when {
         node == null || node.isNull -> Result.success(null)
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается строка"))
         else -> Result.success(node.asText())
     }
-}
 
 fun validateOptionalTextFieldAllowEmpty(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<String?> {
-    val node = root.get(fieldName)
-    return when {
+): Result<String?> =
+    when {
         node == null -> Result.success(null)
-        node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+        node.isNull -> Result.failure(FieldError(fieldName, node, "Ожидается строка"))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается строка"))
         else -> Result.success(node.asText())
     }
-}
 
 fun collectValidationErrors(results: List<Result<*>>): List<FieldError> =
     results
@@ -264,7 +247,7 @@ fun collectAllValidationErrors(results: List<Result<*>>): Map<String, Any> {
         error.field to
             mapOf(
                 "Value" to (error.node ?: JsonMapper.nullNode()),
-                "Error" to "Некорректное значение",
+                "Error" to error.errorMessage,
             )
     }
 }
@@ -339,7 +322,7 @@ fun validateCategory(
     return if (category in allowedCategories) {
         Result.success(category)
     } else {
-        Result.failure(FieldError("Category", root.get("Category")))
+        Result.failure(FieldError("Category", root.get("Category"), "Ожидается корректный тип техники"))
     }
 }
 
@@ -350,87 +333,80 @@ fun validatePrice(
     if (price >= BigDecimal.ZERO) {
         Result.success(price)
     } else {
-        Result.failure(FieldError("Price", root.get("Price")))
+        Result.failure(FieldError("Price", root.get("Price"), "Ожидается положительное целое число"))
     }
 
 fun requireNumberAllowZero(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<BigDecimal> {
-    val node = root.get(fieldName)
-    return when {
-        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isNumber -> Result.failure(FieldError(fieldName, node))
+): Result<BigDecimal> =
+    when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число, но получен null"))
+        !node.isNumber -> Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число"))
         else -> {
             try {
                 val value = BigDecimal(node.asText())
                 if (value >= BigDecimal.ZERO) {
                     Result.success(value)
                 } else {
-                    Result.failure(FieldError(fieldName, node))
+                    Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число"))
                 }
             } catch (e: Exception) {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается положительное целое число"))
             }
         }
     }
-}
 
 fun requireTextAllowEmpty(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<String> {
-    val node = root.get(fieldName)
-    return when {
-        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+): Result<String> =
+    when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается строка"))
         else -> Result.success(node.asText())
     }
-}
 
 fun requireCategoryAllowDefault(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<String> {
-    val node = root.get(fieldName)
-    return when {
-        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+): Result<String> =
+    when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается корректный тип техники"))
         else -> {
             val category = node.asText()
             val allowedCategories = setOf("ПК", "Монитор", "Принтер", "Телефон", "Другое")
             if (category in allowedCategories) {
                 Result.success(category)
             } else {
-                Result.failure(FieldError(fieldName, node))
+                Result.failure(FieldError(fieldName, node, "Ожидается корректный тип техники"))
             }
         }
     }
-}
 
 fun requireDateFieldAllowEmpty(
-    root: JsonNode,
+    node: JsonNode?,
     fieldName: String,
-): Result<String> {
-    val node = root.get(fieldName)
-    return when {
-        node == null || node.isNull -> Result.failure(FieldError(fieldName, node))
-        !node.isTextual -> Result.failure(FieldError(fieldName, node))
+): Result<String> =
+    when {
+        node == null || node.isNull -> Result.failure(FieldError(fieldName, node, "Отсутствует поле"))
+        !node.isTextual -> Result.failure(FieldError(fieldName, node, "Ожидается дата"))
         else -> {
             val text = node.asText()
-            if (text.isBlank()) {
-                Result.success(text)
+            if (text.isEmpty()) {
+                // Пустая строка разрешена (AllowEmpty)
+                Result.success("")
             } else {
                 try {
                     LocalDate.parse(text)
                     Result.success(text)
                 } catch (e: Exception) {
-                    Result.failure(FieldError(fieldName, node))
+                    Result.failure(FieldError(fieldName, node, "Ожидается дата"))
                 }
             }
         }
     }
-}
 
 fun validateUserExists(
     userId: UUID,
@@ -440,7 +416,7 @@ fun validateUserExists(
     if (storage.getUser(userId) != null) {
         Result.success(userId)
     } else {
-        Result.failure(FieldError("User", root.get("User")))
+        Result.failure(FieldError("User", root.get("User"), "Ожидается корректный UUID или null"))
     }
 
 fun validateResponsiblePersonExists(
@@ -451,7 +427,7 @@ fun validateResponsiblePersonExists(
     if (storage.getUser(responsiblePersonId) != null) {
         Result.success(responsiblePersonId)
     } else {
-        Result.failure(FieldError("ResponsiblePerson", root.get("ResponsiblePerson")))
+        Result.failure(FieldError("ResponsiblePerson", root.get("ResponsiblePerson"), "Ожидается корректный UUID"))
     }
 
 fun parseUuid(
@@ -462,5 +438,5 @@ fun parseUuid(
     try {
         Result.success(UUID.fromString(value))
     } catch (e: Exception) {
-        Result.failure(FieldError(fieldName, root.get(fieldName)))
+        Result.failure(FieldError(fieldName, root.get(fieldName), "Ожидается корректный UUID или null"))
     }

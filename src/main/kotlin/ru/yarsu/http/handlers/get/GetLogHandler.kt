@@ -15,6 +15,10 @@ val equipmentIdQuery = Query.uuid().optional("equipment_id")
 @Route(method = Method.GET, path = "/v3/log")
 fun getLogHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val params = pageParams()
         val filterEqId = equipmentIdQuery(req)
 

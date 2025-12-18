@@ -18,21 +18,23 @@ fun statisticsHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
         val byType =
             req.query("by-type")
-                ?: throw ValidationException(Status.BAD_REQUEST, mapOf("by-type" to mapOf("Error" to "Missing required parameter")))
-
-        if (user == null || user.Role != UserRole.Admin) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
-
-        if (user?.Role != UserRole.Admin) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+                ?: throw ValidationException(
+                    Status.BAD_REQUEST,
+                    mapOf("Error" to "Некорректное значение параметра by-type: ожидается category или person"),
+                )
 
         when (byType) {
             "category" -> {
+                // Только Admin может смотреть статистику по категориям
+                if (user == null || user.Role != UserRole.Admin) {
+                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+                }
+
+                // Учитывается только техника под ответственностью текущего пользователя (Admin)
                 val stats =
                     storage
                         .getAllEquipment()
+                        .filter { it.ResponsiblePerson == user.Id }
                         .groupBy { it.Category }
                         .entries
                         .map { (category, items) ->
@@ -44,6 +46,11 @@ fun statisticsHandler(storage: EquipmentStorage): HttpHandler =
                 ok(mapOf("StatisticsByCategory" to stats))
             }
             "person" -> {
+                // Только Manager может смотреть статистику по персонам
+                if (user == null || user.Role != UserRole.Manager) {
+                    throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+                }
+
                 val stats =
                     storage
                         .getAllEquipment()
@@ -55,10 +62,13 @@ fun statisticsHandler(storage: EquipmentStorage): HttpHandler =
                             val total = items.fold(0.0) { acc, e -> acc + e.Price.toDouble() }
                             val usersCount = items.mapNotNull { it.User }.distinct().size
                             PersonStat(personName, items.size, usersCount, total)
-                        }.sortedByDescending { it.Person }
+                        }.sortedBy { it.Person }
 
                 ok(mapOf("StatisticsByPerson" to stats))
             }
-            else -> throw ValidationException(Status.BAD_REQUEST, mapOf("by-type" to mapOf("Error" to "Invalid by-type parameter")))
+            else -> throw ValidationException(
+                Status.BAD_REQUEST,
+                mapOf("Error" to "Некорректное значение параметра by-type: ожидается category или person"),
+            )
         }
     }

@@ -17,21 +17,35 @@ import java.util.UUID
 @Route(method = Method.DELETE, path = "/v3/equipment/{equipment-id}")
 fun deleteEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        // Allow any authenticated user to delete equipment
-        // if (user == null) {
-        //     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        // }
+        if (user == null || user.Role != UserRole.Admin) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
 
         val id = equipmentIdPathLens(req)
 
         val existing =
             storage.getEquipment(id)
-                ?: return@restful notFound(mapOf("Error" to "Оборудование не найдено"))
+                ?: return@restful notFound(mapOf("Error" to "Оборудование не найдено", "EquipmentId" to id.toString()))
 
-        if (user?.Role != UserRole.Admin && existing.ResponsiblePerson != user?.Id) {
+        // Согласно спецификации: "Разрешено только для оборудования под ответственностью пользователя"
+        if (existing.ResponsiblePerson != user?.Id) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
         storage.removeEquipment(id)
-        ok(mapOf("LogId" to id.toString()))
+
+        // Добавление записи в журнал согласно спецификации
+        val logId = UUID.randomUUID()
+        storage.addLog(
+            Log(
+                Id = logId,
+                Equipment = existing.Id,
+                ResponsiblePerson = existing.ResponsiblePerson.toString(),
+                Operation = "Списание: ${existing.Equipment}",
+                Text = "",
+                LogDateTime = LocalDateTime.now(),
+            ),
+        )
+
+        ok(mapOf("LogId" to logId.toString()))
     }

@@ -11,13 +11,13 @@ import ru.yarsu.http.handlers.restful
 @Route(method = Method.GET, path = "/v3/equipment")
 fun listEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        val params = pageParams()
-
         if (user == null) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
-        val sorted = storage.getAllEquipment().sortedWith(compareBy<ru.yarsu.Equipment> { it.Category.lowercase() }.thenBy { it.Id })
+        val params = pageParams()
+
+        val sorted = storage.getAllEquipment().sortedWith(compareBy<ru.yarsu.Equipment> { it.Category }.thenBy { it.Id })
         val items =
             sorted.map {
                 ru.yarsu.http.handlers.EquipmentListItem(

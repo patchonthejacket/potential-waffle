@@ -6,7 +6,9 @@ import org.http4k.core.Status
 import ru.yarsu.Equipment
 import ru.yarsu.EquipmentStorage
 import ru.yarsu.Log
+import ru.yarsu.UserRole
 import ru.yarsu.http.Route
+import ru.yarsu.http.handlers.FieldError
 import ru.yarsu.http.handlers.ValidationException
 import ru.yarsu.http.handlers.restful
 import java.math.BigDecimal
@@ -16,7 +18,8 @@ import java.util.UUID
 @Route(method = Method.POST, path = "/v3/equipment")
 fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
-        if (user == null) {
+        // Check auth before any validation to prioritize 401 over 400
+        if (user == null || user.Role != UserRole.Admin) {
             throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
         }
 
@@ -28,16 +31,48 @@ fun postEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                     val GuaranteeDate = requireDateFieldAllowEmpty("GuaranteeDate")
                     val Price = requireNumberAllowZero("Price")
                     val Location = requireTextAllowEmpty("Location")
-                    val userText = optionalTextAllowEmpty("User")
-                    val User =
-                        if (!userText.isNullOrBlank()) {
-                            validateUserUuid("User", userText)
-                        } else {
-                            null
+
+                    // User может быть: null (валидно), отсутствовать (валидно), или строка UUID
+                    val userNode = root.get("User")
+                    val User: java.util.UUID? =
+                        when {
+                            userNode == null -> null // поле отсутствует - валидно
+                            userNode.isNull -> null // явный null - валидно
+                            !userNode.isTextual -> {
+                                validateBusiness(Result.failure<String>(FieldError("User", userNode, "Ожидается корректный UUID или null")))
+                                null
+                            }
+                            userNode.asText().isBlank() -> null // пустая строка - null
+                            else -> {
+                                val r = parseUuid("User", userNode.asText())
+                                validateBusiness(r)
+                                val uuid = r.getOrNull()
+                                // Проверяем существование пользователя
+                                if (uuid != null && storage.getUser(uuid) == null) {
+                                    validateBusiness(
+                                        Result.failure<String>(FieldError("User", userNode, "Ожидается корректный UUID или null")),
+                                    )
+                                    null
+                                } else {
+                                    uuid
+                                }
+                            }
                         }
 
                     val Operation = requireText("Operation")
-                    val Text = optionalTextAllowEmpty("Text") ?: ""
+
+                    // Text может быть: null (-> ""), отсутствовать (-> ""), или строка
+                    val textNode = root.get("Text")
+                    val Text: String =
+                        when {
+                            textNode == null -> "" // поле отсутствует - default ""
+                            textNode.isNull -> "" // явный null - default ""
+                            !textNode.isTextual -> {
+                                validateBusiness(Result.failure<String>(FieldError("Text", textNode, "Ожидается строка")))
+                                ""
+                            }
+                            else -> textNode.asText()
+                        }
                 }
             }
 

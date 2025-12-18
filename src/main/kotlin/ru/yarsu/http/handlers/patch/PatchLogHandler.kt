@@ -13,6 +13,10 @@ import ru.yarsu.http.handlers.restful
 @Route(method = Method.PATCH, path = "/v3/log/{log-id}")
 fun patchLogHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val id = logIdPathLens(req)
         val existing =
             storage.getLog(id)
@@ -27,10 +31,7 @@ fun patchLogHandler(storage: EquipmentStorage): HttpHandler =
                 throw ValidationException(Status.BAD_REQUEST, collectErrors())
             }
 
-            // Проверка авторизации после валидации JSON
-            if (user == null) {
-                throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-            }
+            // auth already checked
 
             // Применяем частичное обновление
             storage.updateLog(id) { log ->

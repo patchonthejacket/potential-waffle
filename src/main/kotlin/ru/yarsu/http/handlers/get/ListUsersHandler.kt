@@ -19,14 +19,14 @@ fun listUsersHandler(storage: EquipmentStorage): HttpHandler =
         val sorted =
             storage
                 .getAllUsers()
-                .sortedWith(compareBy<User> { it.Name.lowercase() }.thenBy { it.Id })
+                .sortedWith(compareBy<User> { it.Name }.thenBy { it.Id })
 
         val result =
             sorted.map { u ->
                 mapOf(
                     "Id" to u.Id.toString(),
                     "Name" to u.Name,
-                    "RegistrationDateTime" to u.RegistrationDateTime,
+                    "RegistrationDateTime" to u.RegistrationDateTime.toString(),
                     "Email" to u.Email,
                     "Position" to u.Position,
                 )

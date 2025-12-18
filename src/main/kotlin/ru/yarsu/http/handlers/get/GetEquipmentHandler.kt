@@ -12,28 +12,33 @@ import ru.yarsu.http.handlers.restful
 @Route(method = Method.GET, path = "/v3/equipment/{equipment-id}")
 fun getEquipmentHandler(storage: EquipmentStorage): HttpHandler =
     restful(storage) {
+        if (user == null) {
+            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
+        }
+
         val id = equipmentIdPathLens(req)
 
         val item =
             storage.getEquipment(id)
                 ?: return@restful notFound(mapOf("Error" to "Элемент техники не найден", "EquipmentId" to id.toString()))
 
-        if (user == null) {
-            throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
-        }
+        // auth checked before parsing
 
         val responsiblePerson = storage.getUser(item.ResponsiblePerson)
         val user = item.User?.let { storage.getUser(it) }
         val logs =
-            storage.getLogsByEquipment(id).map {
-                ru.yarsu.http.handlers.LogRef(
-                    Id = it.Id.toString(),
-                    ResponsiblePerson = it.ResponsiblePerson,
-                    Operation = it.Operation,
-                    Text = it.Text,
-                    LogDateTime = it.LogDateTime.toString(),
-                )
-            }
+            storage
+                .getLogsByEquipment(id)
+                .sortedWith(compareByDescending<ru.yarsu.Log> { it.LogDateTime }.thenBy { it.Id })
+                .map {
+                    ru.yarsu.http.handlers.LogRef(
+                        Id = it.Id.toString(),
+                        ResponsiblePerson = it.ResponsiblePerson,
+                        Operation = it.Operation,
+                        Text = it.Text,
+                        LogDateTime = it.LogDateTime.toString(),
+                    )
+                }
 
         val detail =
             ru.yarsu.http.handlers.EquipmentDetail(

@@ -31,6 +31,7 @@ fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
         // Проверка прав на объект как у друга
         when (user.Role) {
             UserRole.User -> {
+                // Пользователь может изменять только оборудование, которым он пользуется
                 if (existing.User != user.Id) {
                     throw ValidationException(Status.UNAUTHORIZED, mapOf("Error" to "Отказано в авторизации"))
                 }
@@ -91,9 +92,31 @@ fun patchEquipmentHandler(storage: EquipmentStorage): HttpHandler =
                 val price = optionalNumber("Price")?.also { validatePrice(it) }
                 val location = optionalTextAllowEmpty("Location")
                 val responsiblePersonUuid =
-                    optionalText(
-                        "ResponsiblePerson",
-                    )?.let { validateResponsiblePersonUuid("ResponsiblePerson", it) }
+                    run {
+                        val node = root.get("ResponsiblePerson")
+                        when {
+                            node == null -> null
+                            node.isNull -> {
+                                validate(
+                                    Result.failure<String?>(
+                                        ru.yarsu.http.handlers
+                                            .FieldError("ResponsiblePerson", node),
+                                    ),
+                                )
+                                null
+                            }
+                            !node.isTextual -> {
+                                validate(
+                                    Result.failure<String?>(
+                                        ru.yarsu.http.handlers
+                                            .FieldError("ResponsiblePerson", node),
+                                    ),
+                                )
+                                null
+                            }
+                            else -> validateResponsiblePersonUuid("ResponsiblePerson", node.asText())
+                        }
+                    }
 
                 val userField = validateUserField()
                 val userUuid = if (userField.fieldProvided && userField.value != null) validateUserUuid("User", userField.value) else null

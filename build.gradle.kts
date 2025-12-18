@@ -26,3 +26,26 @@ tasks.test {
 kotlin {
     jvmToolchain(21)
 }
+
+sourceSets {
+    create("friendTest") {
+        kotlin.srcDir("src(other)/main/kotlin")
+        kotlin.srcDir("src(other)/test/kotlin")
+        resources.srcDir("src(other)/main/resources")
+        resources.srcDir("src(other)/test/resources")
+        compileClasspath += sourceSets["main"].output
+        runtimeClasspath += sourceSets["main"].output
+    }
+}
+
+val friendTestImplementation by configurations.getting {
+    extendsFrom(configurations["testImplementation"])
+}
+
+tasks.register<Test>("friendTest") {
+    description = "Run tests for friend's code in src(other)"
+    group = "verification"
+    testClassesDirs = sourceSets["friendTest"].output.classesDirs
+    classpath = sourceSets["friendTest"].runtimeClasspath
+    useJUnitPlatform()
+}
